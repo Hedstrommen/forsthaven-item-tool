@@ -36,7 +36,7 @@ const SLOTS = ["head", "body", "legs", "one hand", "two hands", "small"];
 let catalog = [];                 // every item in the game
 let unlockedItemNumbers = new Set(); // the player's unlocked pool
 let builds = [];                  // the player's saved builds
-let currentPage = "browse";       // browse | pool | builds
+let currentPage = "builds";        // builds (home) | browse | pool | build:<id>
 let detailItemNumber = null;      // item shown in the detail overlay
 
 // ---------------------------------------------------------------------------
@@ -392,18 +392,23 @@ function createItemCard(item) {
 function renderBuildsPage() {
   appElement.innerHTML = "";
 
+  // The builds page is the home page: the list of current builds, plus the
+  // option to create a new build right there.
   const newBuildButton = document.createElement("button");
   newBuildButton.className = "navlink";
   newBuildButton.textContent = "+ New build";
   newBuildButton.addEventListener("click", function () {
-    builds.push({
+    const newBuild = {
       id: crypto.randomUUID(),
       title: "New build",
       characterIndex: 0,
       notes: "",
       equippedItemNumbers: []
-    });
+    };
+    builds.push(newBuild);
     savePlayerData();
+    // Open the fresh build immediately so the player can name it and equip items.
+    currentPage = "build:" + newBuild.id;
     render();
   });
   appElement.appendChild(newBuildButton);
@@ -749,12 +754,19 @@ function importPlayerData(file) {
 document.querySelectorAll("[data-nav]").forEach(function (navButton) {
   navButton.addEventListener("click", function () {
     currentPage = navButton.dataset.nav;
-    document.querySelectorAll(".navlink").forEach(function (button) {
-      button.classList.toggle("active", button.dataset.nav === currentPage);
-    });
+    updateNavHighlight();
     render();
   });
 });
+
+// Keeps the top navigation in sync with the current page. Build detail pages
+// still highlight the Builds tab.
+function updateNavHighlight() {
+  const activeNavName = currentPage.startsWith("build:") ? "builds" : currentPage;
+  document.querySelectorAll(".navlink[data-nav]").forEach(function (button) {
+    button.classList.toggle("active", button.dataset.nav === activeNavName);
+  });
+}
 
 document.getElementById("save-load-button").addEventListener("click", function () {
   document.getElementById("save-overlay").classList.remove("hidden");
