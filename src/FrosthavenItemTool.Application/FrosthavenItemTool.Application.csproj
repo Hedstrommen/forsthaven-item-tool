@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Application layer contains use cases. It may only depend on the Domain
+       layer and on abstractions (ports) defined here, never on infrastructure. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>FrosthavenItemTool.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FrosthavenItemTool.Domain\FrosthavenItemTool.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
