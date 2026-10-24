@@ -31,8 +31,16 @@ public static class Program
         Dictionary<int, string> imageNamesByItemNumber = BuildImageIndex(itemsAssetFolder);
 
         List<Item> items = new List<Item>();
+        HashSet<int> seenItemNumbers = new HashSet<int>();
         foreach (SourceItem sourceItem in sourceItems)
         {
+            // The community dataset contains a few exact duplicate rows (for example
+            // Ancient Coin, which exists in several identical copies); we keep only
+            // the first of each item number.
+            if (!seenItemNumbers.Add(sourceItem.Id))
+            {
+                continue;
+            }
             Item item = MapToDomainItem(sourceItem, imageNamesByItemNumber);
             items.Add(item);
         }
