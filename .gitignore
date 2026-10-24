@@ -1,0 +1,8 @@
+# Build output folders we do not want to commit
+bin/
+obj/
+
+# Local editor and environment files
+.vs/
+.idea/
+*.user
