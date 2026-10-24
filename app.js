@@ -359,11 +359,16 @@ function createItemCard(item) {
     actions.appendChild(unlockButton);
   }
 
+  const thumbnailHtml = item.image !== ""
+    ? '<img class="item-thumbnail" src="assets/items/' + item.image + '" alt="' + escapeHtml(item.name) + '" loading="lazy" />'
+    : "";
+
   card.innerHTML =
     '<div class="item-card-head">' +
       '<span class="item-number">#' + item.number + "</span>" +
       '<span class="item-slot">' + escapeHtml(item.slot) + "</span>" +
     "</div>" +
+    thumbnailHtml +
     '<div class="item-name">' + escapeHtml(item.name) + "</div>" +
     '<div class="item-source">' + escapeHtml(item.source) + "</div>" +
     '<div class="item-desc">' + escapeHtml(cleanDescription(item.description)) + "</div>";
