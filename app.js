@@ -271,7 +271,9 @@ function renderBrowsePage(onlyUnlocked) {
       '<option value="number"' + (sortCriterion === "number" ? " selected" : "") + '>Sort: number</option>' +
       '<option value="name"' + (sortCriterion === "name" ? " selected" : "") + '>Sort: name</option>' +
       '<option value="slot"' + (sortCriterion === "slot" ? " selected" : "") + '>Sort: slot</option>' +
-    "</select>";
+    "</select>" +
+    '<input id="unlock-number-input" type="number" min="1" placeholder="Unlock by number..." />' +
+    '<button id="unlock-number-button">Unlock</button>';
   appElement.appendChild(controls);
 
   // Restore the typed search text so re-rendering does not clear the box.
@@ -281,6 +283,34 @@ function renderBrowsePage(onlyUnlocked) {
   document.getElementById("slot-filter").addEventListener("change", render);
   document.getElementById("potion-filter").addEventListener("change", render);
   document.getElementById("sort-select").addEventListener("change", render);
+
+  // Unlock by number: the player types an item number from a loot card and
+  // unlocks it directly, without searching for it first.
+  document.getElementById("unlock-number-button").addEventListener("click", function () {
+    const unlockNumberInput = document.getElementById("unlock-number-input");
+    const typedNumber = unlockNumberInput.value.trim();
+    if (typedNumber === "") {
+      return;
+    }
+    const itemNumber = Number(typedNumber);
+    const item = findItem(itemNumber);
+    if (item === null) {
+      unlockNumberInput.classList.add("invalid");
+      return;
+    }
+    unlockedItemNumbers.add(itemNumber);
+    savePlayerData();
+    unlockNumberInput.value = "";
+    unlockNumberInput.classList.remove("invalid");
+    // Open the item detail so the player can see what they just unlocked.
+    openDetailOverlay(itemNumber);
+    render();
+  });
+  document.getElementById("unlock-number-input").addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      document.getElementById("unlock-number-button").click();
+    }
+  });
 
   const grid = document.createElement("div");
   grid.className = "item-grid";
