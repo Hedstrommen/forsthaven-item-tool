@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A small console tool that converts the raw community dataset into the
+       catalog JSON the web app loads. Keeping it in the solution means the
+       catalog can be regenerated in one command when the data changes. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>FrosthavenItemTool.CatalogGenerator</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FrosthavenItemTool.Domain\FrosthavenItemTool.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
