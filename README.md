@@ -43,12 +43,11 @@ The C# layers are the tested source of truth for all game rules (equipment slot 
 The `docs/` folder is fully static — host it with any static server:
 
 ```bash
-cd docs
 python3 -m http.server 8080
 # open http://localhost:8080
 ```
 
-On GitHub Pages, deploy the `docs/` folder of the `main` branch.
+On GitHub Pages, the site is served from the repository root of the `main` branch.
 
 ## Building and testing the C# solution
 
@@ -60,13 +59,13 @@ dotnet test FrosthavenItemTool.sln
 
 ## Regenerating the item catalog
 
-When the community dataset changes, regenerate `docs/data/catalog.json`:
+When the community dataset changes, regenerate `data/catalog.json`:
 
 ```bash
 dotnet run --project src/FrosthavenItemTool.CatalogGenerator -- \
   data/frosthaven-items-source.json \
-  docs/assets/items \
-  docs/data/catalog.json
+  assets/items \
+  data/catalog.json
 ```
 
 ## Roadmap
