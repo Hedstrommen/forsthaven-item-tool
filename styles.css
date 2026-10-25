@@ -383,8 +383,8 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
 
 .build-layout { display: flex; gap: 24px; flex-wrap: wrap; }
 
-/* Character stage: original artwork at original size, with a 3x3 grid of
-   slot markers laid over it covering the art with even padding. */
+/* Character stage: the artwork stays at original size; the equipment slots
+   live in their own separate panel below it. */
 .character-stage {
   position: relative;
   flex-shrink: 0;
@@ -392,7 +392,7 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
   border-radius: 12px;
   overflow: hidden;
   background: var(--surface);
-  width: max-content;
+  width: 400px;
   max-width: 100%;
 }
 .artwork-frame { position: relative; display: inline-block; line-height: 0; }
@@ -412,45 +412,83 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
   color: var(--muted);
 }
 
-/* The 3x3 slot grid stretched over the artwork with even padding */
-.slot-grid {
-  position: absolute;
-  inset: 16px;
+/* Slot panel: its own box below the artwork, one header per slot type with
+   a small picture box under it. */
+.slot-panel {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
   gap: 10px;
-  z-index: 2;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  background: rgba(13, 22, 30, 0.6);
 }
 
-.slot-marker {
-  position: absolute;
-  border-radius: 10px;
+.slot-box { display: flex; flex-direction: column; gap: 6px; }
+
+.slot-header {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-align: center;
+}
+
+.slot-picture {
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
   background: rgba(20, 34, 48, 0.85);
-  border: 2px solid var(--accent);
+  border: 2px dashed var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
-  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
   cursor: pointer;
-  color: var(--text);
-  padding: 2px;
-  z-index: 3;
+  overflow: hidden;
+  min-height: 72px;
 }
-.slot-marker.filled { border-color: var(--accent-warm); background: rgba(29, 49, 69, 0.92); }
-.slot-marker.empty { border-style: dashed; opacity: 0.8; }
+.slot-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+.slot-picture.filled { border-style: solid; border-color: var(--accent-warm); }
+.slot-picture.drop-hover { border-color: var(--accent); box-shadow: 0 0 12px rgba(86, 180, 200, 0.4); }
 
-/* 3x3 grid cell positions, derived from the padded grid */
-.slot-r0c0 { top: 16px; left: 16px; }
-.slot-r0c1 { top: 16px; left: calc(16px + (100% - 32px) / 3 + 10px); }
-.slot-r0c2 { top: 16px; right: 16px; }
-.slot-r1c0 { top: calc(16px + (100% - 32px) / 3 + 10px); left: 16px; }
-.slot-r1c1 { top: calc(16px + (100% - 32px) / 3 + 10px); left: calc(16px + (100% - 32px) / 3 + 10px); }
-.slot-r1c2 { top: calc(16px + (100% - 32px) / 3 + 10px); right: 16px; }
-.slot-r2c0 { bottom: 16px; left: 16px; }
-.slot-r2c1 { bottom: 16px; left: calc(16px + (100% - 32px) / 3 + 10px); }
-.slot-r2c2 { bottom: 16px; right: 16px; }
+/* Available items on the build page */
+.available-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.available-picture {
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.available-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  pointer-events: none;
+}
+.available-picture.equipped { border-color: var(--accent-warm); }
+.available-picture:hover { border-color: var(--accent); }
+
+.wishlist-list.drop-hover { outline: 2px dashed var(--accent); outline-offset: 4px; border-radius: 8px; }
 
 .build-form { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 280px; }
 .build-form input, .build-form select, .build-form textarea {

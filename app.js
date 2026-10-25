@@ -880,8 +880,9 @@ function renderSingleBuildPage(buildId) {
   const layout = document.createElement("div");
   layout.className = "build-layout";
 
-  // The character stage: original artwork at original size with a 3x3 grid
-  // of slot markers on top, covering the artwork with even padding.
+  // The character stage: the artwork stays where it is, and the equipment
+  // slots live in their own separate panel below it - one header per slot
+  // type with a small picture box under each.
   const character = CHARACTERS[build.characterIndex] || CHARACTERS[0];
   const hasArt = character.slug !== undefined;
   const stage = document.createElement("div");
@@ -890,9 +891,6 @@ function renderSingleBuildPage(buildId) {
     stage.innerHTML =
       '<div class="artwork-frame">' +
         '<img class="background" src="assets/characters/fh-' + character.slug + '.webp" alt="' + escapeHtml(character.name) + '" />' +
-        '<div class="slot-grid">' +
-          '<div class="slot-cell"></div><div class="slot-cell"></div><div class="slot-cell"></div>' +
-        "</div>" +
       "</div>";
   } else {
     const namePlate = document.createElement("div");
@@ -900,16 +898,33 @@ function renderSingleBuildPage(buildId) {
     namePlate.textContent = character.name;
     stage.appendChild(namePlate);
   }
-  // 3x3 order: head, body, legs / hand, hand, item / item, item, item
-  stage.appendChild(createSlotMarker(build, "head", "Head", "slot-r0c0", 0));
-  stage.appendChild(createSlotMarker(build, "body", "Body", "slot-r0c1", 0));
-  stage.appendChild(createSlotMarker(build, "legs", "Legs", "slot-r0c2", 0));
-  stage.appendChild(createSlotMarker(build, "one hand", "Hand 1", "slot-r1c0", 0));
-  stage.appendChild(createSlotMarker(build, "one hand", "Hand 2", "slot-r1c1", 1));
-  stage.appendChild(createSlotMarker(build, "small", "Item", "slot-r1c2", 0));
-  stage.appendChild(createSlotMarker(build, "small", "Item", "slot-r2c0", 1));
-  stage.appendChild(createSlotMarker(build, "small", "Item", "slot-r2c1", 2));
-  stage.appendChild(createSlotMarker(build, "small", "Item", "slot-r2c2", 3));
+
+  // Equipment panel: headers with empty picture boxes below them. Equipping
+  // an item puts its card picture into the matching box.
+  const slotPanel = document.createElement("div");
+  slotPanel.className = "slot-panel";
+  const panelGroups = [
+    { label: "Head", slot: "head", markerIndex: 0 },
+    { label: "Body", slot: "body", markerIndex: 0 },
+    { label: "Legs", slot: "legs", markerIndex: 0 },
+    { label: "Hand", slot: "one hand", markerIndex: 0 },
+    { label: "Hand", slot: "one hand", markerIndex: 1 },
+    { label: "Two hands", slot: "two hands", markerIndex: 0 },
+    { label: "Item", slot: "small", markerIndex: 0 },
+    { label: "Item", slot: "small", markerIndex: 1 },
+    { label: "Item", slot: "small", markerIndex: 2 }
+  ];
+  for (const group of panelGroups) {
+    const slotBox = document.createElement("div");
+    slotBox.className = "slot-box";
+    const slotHeader = document.createElement("div");
+    slotHeader.className = "slot-header";
+    slotHeader.textContent = group.label;
+    slotBox.appendChild(slotHeader);
+    slotBox.appendChild(createSlotPicture(build, group.slot, group.markerIndex));
+    slotPanel.appendChild(slotBox);
+  }
+  stage.appendChild(slotPanel);
   layout.appendChild(stage);
 
   // The form: title, character picker (names grouped by game), notes.
@@ -985,6 +1000,11 @@ function renderSingleBuildPage(buildId) {
 
   const statusLine = document.createElement("p");
   statusLine.className = "status-text";
+  statusLine.textContent = buildStatusMessage;
+  if (buildStatusMessage !== "") {
+    statusLine.classList.add("error-text");
+    buildStatusMessage = "";
+  }
   form.appendChild(statusLine);
 
   const equippedTitle = document.createElement("h3");
@@ -1098,12 +1118,35 @@ function renderSingleBuildPage(buildId) {
   }
 
   // Wishlist: items the player wants for this build, tracked separately from
-  // the equipped loadout. Any number of items can be added.
+  // the equipped loadout. Any number of items can be added, including by
+  // dragging pictures from the Available items section.
   const wishlistTitle = document.createElement("h3");
   wishlistTitle.textContent = "Wishlist";
   form.appendChild(wishlistTitle);
 
   const wishlistList = document.createElement("div");
+  wishlistList.className = "wishlist-list";
+  wishlistList.addEventListener("dragover", function (event) {
+    event.preventDefault();
+    wishlistList.classList.add("drop-hover");
+  });
+  wishlistList.addEventListener("dragleave", function () {
+    wishlistList.classList.remove("drop-hover");
+  });
+  wishlistList.addEventListener("drop", function (event) {
+    event.preventDefault();
+    wishlistList.classList.remove("drop-hover");
+    const droppedNumber = Number(event.dataTransfer.getData("text/plain"));
+    const droppedItem = findItem(droppedNumber);
+    if (droppedItem === null) {
+      return;
+    }
+    if (!build.wishlistItemNumbers.includes(droppedNumber)) {
+      build.wishlistItemNumbers.push(droppedNumber);
+      savePlayerData();
+      render();
+    }
+  });
   for (const wishedNumber of build.wishlistItemNumbers) {
     const item = findItem(wishedNumber);
     if (item === null) {
@@ -1145,6 +1188,25 @@ function renderSingleBuildPage(buildId) {
   form.appendChild(wishlistSearchInput);
   form.appendChild(wishlistResults);
 
+  // Available items: everything unlocked in the build's campaign. Filterable,
+  // and each picture can be dragged into a slot box or the wishlist to use it.
+  const availableTitle = document.createElement("h3");
+  availableTitle.textContent = "Available items";
+  form.appendChild(availableTitle);
+
+  const availableFilterInput = document.createElement("input");
+  availableFilterInput.type = "search";
+  availableFilterInput.placeholder = "Filter available items...";
+  form.appendChild(availableFilterInput);
+
+  const availableGrid = document.createElement("div");
+  availableGrid.className = "available-grid";
+  form.appendChild(availableGrid);
+  renderAvailableItems(build, availableFilterInput.value, availableGrid);
+  availableFilterInput.addEventListener("input", function () {
+    renderAvailableItems(build, availableFilterInput.value, availableGrid);
+  });
+
   const deleteButton = document.createElement("button");
   deleteButton.textContent = "Delete build";
   deleteButton.className = "danger";
@@ -1158,6 +1220,72 @@ function renderSingleBuildPage(buildId) {
 
   layout.appendChild(form);
   appElement.appendChild(layout);
+}
+
+function equipIntoBuild(build, item) {
+  const result = tryEquipItem(build, item);
+  if (result.isSuccess) {
+    savePlayerData();
+    render();
+  } else {
+    showBuildStatus(build, result.reason);
+  }
+}
+
+let buildStatusMessage = "";
+
+function showBuildStatus(build, message) {
+  buildStatusMessage = message;
+  render();
+}
+
+// Available items on the build page: small pictures of every item unlocked
+// in the build's campaign. Draggable: drop onto a slot box to equip, or onto
+// the wishlist section to add it there. Clicking opens the item detail.
+function renderAvailableItems(build, filterText, container) {
+  container.innerHTML = "";
+  const pool = buildPool(build);
+  const needle = filterText.trim().toLowerCase();
+  const items = catalog
+    .filter(function (item) {
+      if (!pool.has(item.number)) {
+        return false;
+      }
+      if (needle !== "" && !item.name.toLowerCase().includes(needle) && !String(item.number).includes(needle)) {
+        return false;
+      }
+      return true;
+    })
+    .sort(function (first, second) { return first.number - second.number; });
+  for (const item of items) {
+    const picture = document.createElement("div");
+    picture.className = "available-picture" + (build.equippedItemNumbers.includes(item.number) ? " equipped" : "");
+    picture.draggable = true;
+    picture.title = "#" + item.number + " " + item.name + " (" + item.slot + ") - drag to a slot or the wishlist";
+    if (item.image !== "") {
+      const image = document.createElement("img");
+      image.src = "assets/items/" + item.image;
+      image.alt = item.name;
+      image.draggable = false;
+      picture.appendChild(image);
+    } else {
+      picture.textContent = "#" + item.number;
+    }
+    picture.addEventListener("dragstart", function (event) {
+      event.dataTransfer.setData("text/plain", String(item.number));
+      event.dataTransfer.effectAllowed = "copy";
+    });
+    picture.addEventListener("click", function () {
+      openDetailOverlay(item.number);
+    });
+    container.appendChild(picture);
+  }
+  if (items.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = needle !== "" ? "No matching unlocked items." : "No items unlocked in this campaign yet.";
+    container.appendChild(hint);
+  }
 }
 
 // Search results for the wishlist picker: any catalog item can be added.
@@ -1194,26 +1322,60 @@ function renderWishlistResults(build, searchText, container) {
   }
 }
 
-// A slot marker on the character stage. Filled slots show the item name.
-function createSlotMarker(build, slotName, markerLabel, positionClass, markerIndex) {
+// A small picture box under a slot header. Filled boxes show the equipped
+// item's card picture; clicking it opens the item detail. Dragging an item
+// picture from Available items onto a box equips it.
+function createSlotPicture(build, slotName, markerIndex) {
   const equippedInSlot = build.equippedItemNumbers
     .map(findItem)
     .filter(function (item) { return item !== null && item.slot === slotName; });
 
-  const marker = document.createElement("div");
+  const box = document.createElement("div");
   const item = equippedInSlot[markerIndex];
+  box.className = "slot-picture";
+  box.dataset.slot = slotName;
   if (item === undefined) {
-    marker.className = "slot-marker empty " + positionClass;
-    marker.textContent = markerLabel;
+    box.classList.add("empty");
+    box.textContent = "-";
   } else {
-    marker.className = "slot-marker filled " + positionClass;
-    marker.textContent = item.name;
-    marker.title = "Click to view item card";
-    marker.addEventListener("click", function () {
+    box.classList.add("filled");
+    if (item.image !== "") {
+      const image = document.createElement("img");
+      image.src = "assets/items/" + item.image;
+      image.alt = item.name;
+      image.draggable = false;
+      box.appendChild(image);
+    } else {
+      box.textContent = "#" + item.number;
+    }
+    box.title = "#" + item.number + " " + item.name;
+    box.addEventListener("click", function () {
       openDetailOverlay(item.number);
     });
   }
-  return marker;
+  // Drop target: equipping via drag and drop from Available items.
+  box.addEventListener("dragover", function (event) {
+    event.preventDefault();
+    box.classList.add("drop-hover");
+  });
+  box.addEventListener("dragleave", function () {
+    box.classList.remove("drop-hover");
+  });
+  box.addEventListener("drop", function (event) {
+    event.preventDefault();
+    box.classList.remove("drop-hover");
+    const droppedNumber = Number(event.dataTransfer.getData("text/plain"));
+    const droppedItem = findItem(droppedNumber);
+    if (droppedItem === null) {
+      return;
+    }
+    if (droppedItem.slot !== slotName) {
+      showBuildStatus(build, "A " + droppedItem.slot + " item does not fit the " + slotName + " slot.");
+      return;
+    }
+    equipIntoBuild(build, droppedItem);
+  });
+  return box;
 }
 
 // ---------------------------------------------------------------------------
