@@ -89,7 +89,9 @@ function normalizeBuild(saved) {
     title: saved.title || "Build",
     characterIndex: saved.characterIndex || 0,
     notes: saved.notes || "",
-    equippedItemNumbers: saved.equippedItemNumbers || []
+    campaignId: saved.campaignId || null,
+    equippedItemNumbers: saved.equippedItemNumbers || [],
+    wishlistItemNumbers: saved.wishlistItemNumbers || []
   };
 }
 
@@ -201,6 +203,28 @@ function availablePool() {
     return campaignPool(campaign);
   }
   return unlockedItemNumbers;
+}
+
+// The pool a specific build draws from: its own campaign, or the active one.
+function buildPool(build) {
+  let campaign = null;
+  if (build.campaignId !== null) {
+    campaign = campaigns.find(function (candidate) { return candidate.id === build.campaignId; }) || null;
+  }
+  if (campaign === null) {
+    campaign = activeCampaign();
+  }
+  if (campaign !== null) {
+    return campaignPool(campaign);
+  }
+  return unlockedItemNumbers;
+}
+
+function buildCampaign(build) {
+  if (build.campaignId !== null) {
+    return campaigns.find(function (candidate) { return candidate.id === build.campaignId; }) || null;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -776,6 +800,31 @@ function renderSingleBuildPage(buildId) {
   });
   form.appendChild(titleInput);
 
+  // Campaign selector: the build only shows items from this campaign's pool.
+  const campaignPicker = document.createElement("select");
+  const noCampaignOption = document.createElement("option");
+  noCampaignOption.value = "";
+  noCampaignOption.textContent = "No campaign";
+  campaignPicker.appendChild(noCampaignOption);
+  campaigns.forEach(function (candidate) {
+    const option = document.createElement("option");
+    option.value = candidate.id;
+    option.textContent = candidate.name;
+    if (build.campaignId === candidate.id || (build.campaignId === null && candidate.id === activeCampaignId)) {
+      option.selected = true;
+      if (build.campaignId === null) {
+        build.campaignId = candidate.id;
+      }
+    }
+    campaignPicker.appendChild(option);
+  });
+  campaignPicker.addEventListener("change", function () {
+    build.campaignId = campaignPicker.value === "" ? null : campaignPicker.value;
+    savePlayerData();
+    render();
+  });
+  form.appendChild(campaignPicker);
+
   const picker = document.createElement("select");
   CHARACTER_GROUPS.forEach(function (group) {
     const optgroup = document.createElement("optgroup");
@@ -850,7 +899,7 @@ function renderSingleBuildPage(buildId) {
   pickerTitle.textContent = "Add items";
   form.appendChild(pickerTitle);
 
-  const pool = availablePool();
+  const pool = buildPool(build);
   const pickerList = document.createElement("div");
   const poolItems = catalog.filter(function (item) {
     return pool.has(item.number) && !build.equippedItemNumbers.includes(item.number);
@@ -878,13 +927,61 @@ function renderSingleBuildPage(buildId) {
   if (poolItems.length === 0) {
     const hint = document.createElement("p");
     hint.className = "empty-hint";
-    const campaign = activeCampaign();
+    const campaign = buildCampaign(build);
     hint.textContent = campaign === null
-      ? "Select a campaign in My Campaigns to unlock items for your builds."
-      : "Unlock more items in your campaign first.";
+      ? "Select a campaign above (or in My Campaigns) to unlock items for this build."
+      : "Unlock more items in " + campaign.name + " first.";
     pickerList.appendChild(hint);
   }
   form.appendChild(pickerList);
+
+  // Wishlist: items the player wants for this build, tracked separately from
+  // the equipped loadout. Any number of items can be added.
+  const wishlistTitle = document.createElement("h3");
+  wishlistTitle.textContent = "Wishlist";
+  form.appendChild(wishlistTitle);
+
+  const wishlistList = document.createElement("div");
+  for (const wishedNumber of build.wishlistItemNumbers) {
+    const item = findItem(wishedNumber);
+    if (item === null) {
+      continue;
+    }
+    const wishedRow = document.createElement("div");
+    wishedRow.className = "build-row wishlist-row";
+    wishedRow.innerHTML = "<div>#" + item.number + " " + escapeHtml(item.name) +
+      '<div class="item-slot">' + escapeHtml(item.slot) + "</div></div>";
+    const removeWished = document.createElement("button");
+    removeWished.textContent = "Remove";
+    removeWished.addEventListener("click", function () {
+      build.wishlistItemNumbers = build.wishlistItemNumbers.filter(function (number) {
+        return number !== wishedNumber;
+      });
+      savePlayerData();
+      render();
+    });
+    wishedRow.appendChild(removeWished);
+    wishlistList.appendChild(wishedRow);
+  }
+  if (build.wishlistItemNumbers.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = "Nothing on the wishlist yet. Use the search below to add items you want.";
+    wishlistList.appendChild(hint);
+  }
+  form.appendChild(wishlistList);
+
+  // Wishlist search: add any item from the whole catalog.
+  const wishlistSearchInput = document.createElement("input");
+  wishlistSearchInput.type = "search";
+  wishlistSearchInput.placeholder = "Search items to add to wishlist...";
+  const wishlistResults = document.createElement("div");
+  wishlistResults.className = "wishlist-results";
+  wishlistSearchInput.addEventListener("input", function () {
+    renderWishlistResults(build, wishlistSearchInput.value, wishlistResults);
+  });
+  form.appendChild(wishlistSearchInput);
+  form.appendChild(wishlistResults);
 
   const deleteButton = document.createElement("button");
   deleteButton.textContent = "Delete build";
@@ -899,6 +996,40 @@ function renderSingleBuildPage(buildId) {
 
   layout.appendChild(form);
   appElement.appendChild(layout);
+}
+
+// Search results for the wishlist picker: any catalog item can be added.
+function renderWishlistResults(build, searchText, container) {
+  container.innerHTML = "";
+  const needle = searchText.trim().toLowerCase();
+  if (needle === "") {
+    return;
+  }
+  const results = catalog.filter(function (item) {
+    return (item.name.toLowerCase().includes(needle) || String(item.number).includes(needle))
+      && !build.wishlistItemNumbers.includes(item.number);
+  }).slice(0, 12);
+  for (const item of results) {
+    const row = document.createElement("div");
+    row.className = "build-row";
+    row.innerHTML = "<div>#" + item.number + " " + escapeHtml(item.name) +
+      '<div class="item-slot">' + escapeHtml(item.slot) + "</div></div>";
+    const addButton = document.createElement("button");
+    addButton.textContent = "Add";
+    addButton.addEventListener("click", function () {
+      build.wishlistItemNumbers.push(item.number);
+      savePlayerData();
+      render();
+    });
+    row.appendChild(addButton);
+    container.appendChild(row);
+  }
+  if (results.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = "No matching items.";
+    container.appendChild(hint);
+  }
 }
 
 // A slot marker on the character stage. Filled slots show the item name.
@@ -1073,7 +1204,9 @@ document.getElementById("new-build-button").addEventListener("click", function (
     title: "New build",
     characterIndex: 0,
     notes: "",
-    equippedItemNumbers: []
+    campaignId: activeCampaignId,
+    equippedItemNumbers: [],
+    wishlistItemNumbers: []
   };
   builds.push(newBuild);
   savePlayerData();

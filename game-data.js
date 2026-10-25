@@ -91,7 +91,6 @@ const BUILDING_UNLOCKS = [
   { building: "Craftsman 7", itemNumbers: [36, 37, 38, 39, 40] },
   { building: "Craftsman 8", itemNumbers: [41, 42, 43, 44, 45] },
   { building: "Craftsman 9", itemNumbers: [46, 47, 48, 49, 50] },
-  { building: "Alchemy (Alchemist Table)", itemNumbers: [83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119] },
   { building: "Trading Post 2", itemNumbers: [129, 130, 131, 132, 133, 134, 135, 136, 137] },
   { building: "Trading Post 3", itemNumbers: [138, 139, 140, 141, 142, 143, 144, 145, 146] },
   { building: "Trading Post 4", itemNumbers: [147, 148, 149, 150, 151, 152, 153, 154, 155] },
@@ -114,12 +113,12 @@ function extraUnlockGroups() {
       return;
     }
     let label;
-    if (item.source.indexOf("Loot Deck Random") !== -1) {
+    if (item.source.indexOf("Alchemy") !== -1) {
+      label = "Potions";
+    } else if (item.source.indexOf("Loot Deck Random") !== -1) {
       label = "Random items";
     } else if (item.source.indexOf("Random Blueprint") !== -1) {
       label = "Blueprints";
-    } else if (item.source.indexOf("Alchemy") !== -1) {
-      label = "Potions";
     } else {
       label = "Other unlocks";
     }

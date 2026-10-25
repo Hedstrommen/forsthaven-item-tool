@@ -383,27 +383,32 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
 
 .build-layout { display: flex; gap: 24px; flex-wrap: wrap; }
 
+/* Character stage: bigger, artwork-only. The card art is landscape with the
+   illustration on the left ~60%; scale it up and crop to the artwork. */
 .character-stage {
   position: relative;
-  width: 300px;
+  width: 460px;
+  max-width: 100%;
   flex-shrink: 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--surface);
 }
-/* Show only the artwork part of the character card: crop away the name
-   plate and text at the bottom, keep the illustration. */
-.artwork-crop { position: relative; height: 420px; }
+.artwork-crop {
+  position: relative;
+  height: 540px;
+  overflow: hidden;
+}
 .artwork-crop img.background {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  opacity: 0.9;
+  top: -12%;
+  left: -45%;
+  width: 200%;
+  opacity: 0.92;
 }
 .stage-placeholder {
-  height: 420px;
+  height: 540px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -412,17 +417,18 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
   color: var(--muted);
 }
 
+/* Slot markers: clustered close together so they all cover the artwork */
 .slot-marker {
   position: absolute;
-  width: 60px;
-  height: 60px;
+  width: 92px;
+  height: 64px;
   border-radius: 10px;
   background: rgba(20, 34, 48, 0.88);
   border: 2px solid var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   text-align: center;
   cursor: pointer;
   color: var(--text);
@@ -432,12 +438,13 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
 .slot-marker.filled { border-color: var(--accent-warm); background: rgba(29, 49, 69, 0.95); }
 .slot-marker.empty { border-style: dashed; opacity: 0.8; }
 
-.slot-head { top: 3%; left: 50%; transform: translateX(-50%); }
-.slot-body { top: 24%; left: 50%; transform: translateX(-50%); }
-.slot-legs { top: 60%; left: 50%; transform: translateX(-50%); }
-.slot-hand-one { top: 32%; left: 3%; }
-.slot-hand-two { top: 32%; right: 3%; }
-.slot-small { top: 86%; left: 50%; transform: translateX(-50%); }
+/* Tight group over the artwork (left side of the stage) */
+.slot-head { top: 6%; left: 34%; transform: translateX(-50%); }
+.slot-body { top: 24%; left: 12%; }
+.slot-legs { top: 56%; left: 12%; }
+.slot-hand-one { top: 40%; left: 34%; }
+.slot-hand-two { top: 40%; right: 30%; }
+.slot-small { top: 74%; left: 34%; transform: translateX(-50%); }
 
 .build-form { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 280px; }
 .build-form input, .build-form select, .build-form textarea {
@@ -452,6 +459,9 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
 .build-form select { font-family: var(--font-display); }
 .build-form textarea { min-height: 80px; resize: vertical; }
 .build-form h3 { margin: 10px 0 4px; }
+
+.wishlist-results { margin-top: 6px; }
+.wishlist-row { border-style: dashed; }
 
 .status-text { color: var(--muted); font-size: 0.85rem; min-height: 1.2em; }
 .error-text { color: var(--danger); }
