@@ -106,7 +106,7 @@ function isPotionItem(item) {
   return item.source.indexOf("Alchemy") !== -1;
 }
 
-function queryItems(searchText, slotFilter, onlyPotions, pool, sortCriterion) {
+function queryItems(searchText, slotFilter, onlyPotions, pool, sortCriterion, sourceFilter) {
   let results = catalog.slice();
 
   if (pool !== null) {
@@ -117,6 +117,9 @@ function queryItems(searchText, slotFilter, onlyPotions, pool, sortCriterion) {
   }
   if (onlyPotions) {
     results = results.filter(isPotionItem);
+  }
+  if (sourceFilter !== null) {
+    results = results.filter(function (item) { return item.source === sourceFilter; });
   }
   if (searchText.trim() !== "") {
     const needle = searchText.trim().toLowerCase();
@@ -268,6 +271,8 @@ function render() {
     renderSingleCampaignPage(currentPage.slice("campaign:".length));
   } else if (currentPage.startsWith("build:")) {
     renderSingleBuildPage(currentPage.slice("build:".length));
+  } else if (currentPage.startsWith("source:")) {
+    renderSourcePage(decodeURIComponent(currentPage.slice("source:".length)));
   } else {
     renderBrowsePage();
   }
@@ -308,18 +313,31 @@ function updateNavHighlight() {
 // All Items page: a plain, big list of every item in the game
 // ---------------------------------------------------------------------------
 
+let browseSourceFilter = "";
+let renderBrowsePotionsOnly = false;
+
+function allSources() {
+  const sources = new Set();
+  catalog.forEach(function (item) { sources.add(item.source); });
+  return Array.from(sources).sort(function (first, second) {
+    return first.localeCompare(second);
+  });
+}
+
 function renderBrowsePage() {
   const searchText = document.getElementById("search-input") ? document.getElementById("search-input").value : "";
   const slotFilter = document.getElementById("slot-filter") ? document.getElementById("slot-filter").value : "";
-  const onlyPotions = document.getElementById("potion-filter") ? document.getElementById("potion-filter").checked : false;
+  const onlyPotions = renderBrowsePotionsOnly;
   const sortCriterion = document.getElementById("sort-select") ? document.getElementById("sort-select").value : "number";
+  const sourceFilter = browseSourceFilter;
 
   const items = queryItems(
     searchText,
     slotFilter === "" ? null : slotFilter,
     onlyPotions,
     null,
-    sortCriterion
+    sortCriterion,
+    sourceFilter === "" ? null : sourceFilter
   );
 
   appElement.innerHTML = "";
@@ -336,20 +354,46 @@ function renderBrowsePage() {
       '<option value="">All slots</option>' +
       SLOTS.map(function (slot) { return '<option value="' + slot + '"' + (slotFilter === slot ? " selected" : "") + ">" + slot + "</option>"; }).join("") +
     "</select>" +
-    '<label class="filter-label"><input id="potion-filter" type="checkbox"' + (onlyPotions ? " checked" : "") + ' /> Potions only</label>' +
+    '<select id="source-filter">' +
+      '<option value="">All sources</option>' +
+      allSources().map(function (source) { return '<option value="' + escapeHtml(source) + '"' + (sourceFilter === source ? " selected" : "") + ">" + escapeHtml(source.replace(/\n/g, " / ")) + "</option>"; }).join("") +
+    "</select>" +
     '<select id="sort-select">' +
       '<option value="number"' + (sortCriterion === "number" ? " selected" : "") + '>Sort: number</option>' +
       '<option value="name"' + (sortCriterion === "name" ? " selected" : "") + '>Sort: name</option>' +
       '<option value="slot"' + (sortCriterion === "slot" ? " selected" : "") + '>Sort: slot</option>' +
-    "</select>";
+    "</select>" +
+    '<button type="button" id="potion-filter" class="toggle-button' + (onlyPotions ? " on" : "") + '" aria-pressed="' + onlyPotions + '">' +
+      'Potions only' +
+    "</button>";
   appElement.appendChild(controls);
 
   const searchInput = document.getElementById("search-input");
   searchInput.value = searchText;
   searchInput.addEventListener("input", render);
   document.getElementById("slot-filter").addEventListener("change", render);
-  document.getElementById("potion-filter").addEventListener("change", render);
+  document.getElementById("source-filter").addEventListener("change", function () {
+    browseSourceFilter = document.getElementById("source-filter").value;
+    render();
+  });
   document.getElementById("sort-select").addEventListener("change", render);
+  document.getElementById("potion-filter").addEventListener("click", function () {
+    renderBrowsePotionsOnly = !renderBrowsePotionsOnly;
+    render();
+  });
+
+  if (sourceFilter !== null) {
+    const sourceHeading = document.createElement("p");
+    sourceHeading.className = "source-heading";
+    sourceHeading.innerHTML =
+      "Showing items from <strong>" + escapeHtml(sourceFilter.replace(/\n/g, " / ")) + "</strong> " +
+      '(<button type="button" id="clear-source" class="component-link">clear</button>)';
+    appElement.appendChild(sourceHeading);
+    document.getElementById("clear-source").addEventListener("click", function () {
+      browseSourceFilter = "";
+      render();
+    });
+  }
 
   const grid = document.createElement("div");
   grid.className = "item-grid";
@@ -365,29 +409,72 @@ function renderBrowsePage() {
   }
 }
 
+// The All Items page: pictures of the item cards only. All the card text
+// (name, description, slot, source) lives on the card image already, and the
+// full information opens when the user clicks a picture.
 function createItemCard(item) {
-  const card = document.createElement("div");
+  const card = document.createElement("button");
   card.className = "item-card";
-
-  const thumbnailHtml = item.image !== ""
-    ? '<img class="item-thumbnail" src="assets/items/' + item.image + '" alt="' + escapeHtml(item.name) + '" loading="lazy" />'
-    : "";
-
-  card.innerHTML =
-    '<div class="item-card-head">' +
-      '<span class="item-number">#' + item.number + "</span>" +
-      '<span class="item-slot">' + escapeHtml(item.slot) + "</span>" +
-    "</div>" +
-    thumbnailHtml +
-    '<div class="item-name">' + escapeHtml(item.name) + "</div>" +
-    '<div class="item-source">' + escapeHtml(item.source) + "</div>" +
-    '<div class="item-desc">' + window.fhIconText(item.description) + "</div>";
-
+  card.type = "button";
+  card.title = "#" + item.number + " - " + item.name;
   card.addEventListener("click", function () {
     openDetailOverlay(item.number);
   });
+  if (item.image !== "") {
+    const image = document.createElement("img");
+    image.className = "item-picture";
+    image.src = "assets/items/" + item.image;
+    image.alt = "#" + item.number + " " + item.name;
+    image.loading = "lazy";
+    card.appendChild(image);
+  } else {
+    const fallback = document.createElement("div");
+    fallback.className = "item-fallback";
+    fallback.innerHTML =
+      '<span class="item-number">#' + item.number + "</span>" +
+      '<span class="item-name">' + escapeHtml(item.name) + "</span>";
+    card.appendChild(fallback);
+  }
   return card;
 }
+
+// Source page: all items that share one source, e.g. a building or a
+// random-item group.
+function renderSourcePage(source) {
+  appElement.innerHTML = "";
+
+  const backButton = document.createElement("button");
+  backButton.className = "back-button";
+  backButton.textContent = "<- All items";
+  backButton.addEventListener("click", function () {
+    currentPage = "browse";
+    render();
+  });
+  appElement.appendChild(backButton);
+
+  const heading = document.createElement("h1");
+  heading.textContent = source.replace(/\n/g, " / ");
+  appElement.appendChild(heading);
+
+  const items = catalog
+    .filter(function (item) { return item.source === source; })
+    .sort(function (first, second) { return first.number - second.number; });
+
+  const grid = document.createElement("div");
+  grid.className = "item-grid";
+  for (const item of items) {
+    grid.appendChild(createItemCard(item));
+  }
+  appElement.appendChild(grid);
+  if (items.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = "No items have this source.";
+    appElement.appendChild(hint);
+  }
+}
+
+
 
 // ---------------------------------------------------------------------------
 // My Campaigns page
@@ -862,7 +949,7 @@ function openDetailOverlay(itemNumber) {
       '<div class="detail-info">' +
         "<h2>#" + item.number + " " + escapeHtml(item.name) + "</h2>" +
         "<p><strong>Slot:</strong> " + escapeHtml(item.slot) +
-        " &nbsp; <strong>Source:</strong> " + escapeHtml(item.source) + "</p>" +
+        " &nbsp; <strong>Source:</strong> <button class=\"component-link source-link\" data-source=\"" + escapeHtml(item.source) + "\">" + escapeHtml(item.source.replace(/\n/g, " / ")) + "</button></p>" +
         "<p>" + window.fhIconText(item.description) + "</p>" +
         recipeHtml +
         (chainItems.length > 0
@@ -885,11 +972,19 @@ function openDetailOverlay(itemNumber) {
       "</div>" +
     "</div>";
 
-  content.querySelectorAll(".component-link").forEach(function (linkButton) {
+  content.querySelectorAll(".component-link[data-item]").forEach(function (linkButton) {
     linkButton.addEventListener("click", function () {
       openDetailOverlay(Number(linkButton.dataset.item));
     });
   });
+  const sourceLink = content.querySelector(".source-link");
+  if (sourceLink !== null) {
+    sourceLink.addEventListener("click", function () {
+      closeDetailOverlay();
+      currentPage = "source:" + encodeURIComponent(sourceLink.dataset.source);
+      render();
+    });
+  }
   content.querySelector(".close-overlay").addEventListener("click", closeDetailOverlay);
 
   overlay.classList.remove("hidden");
