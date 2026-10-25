@@ -2,31 +2,41 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <!-- Makes the app usable on phones: scales to the screen width -->
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Frosthaven Item Tool</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Top navigation: three pages plus a save button -->
-  <nav class="topnav">
-    <div class="brand">Frosthaven Items</div>
-    <div class="navlinks">
-      <button data-nav="browse" class="navlink">All Items</button>
-      <button data-nav="pool" class="navlink">My Items</button>
-      <button data-nav="builds" class="navlink active">Builds</button>
-      <button id="save-load-button" class="navlink">Save / Load</button>
-    </div>
-  </nav>
+  <div class="app-shell">
+    <nav id="sidebar">
+      <div class="brand">
+        <span class="brand-title">Frosthaven</span>
+        <span class="brand-sub">Item Tool</span>
+      </div>
+      <div class="side-nav">
+        <button data-nav="browse" class="navlink active">All Items</button>
+        <button data-nav="campaigns" class="navlink">My Campaigns</button>
+        <button id="save-load-button" class="navlink">Save / Load</button>
+      </div>
+      <div class="builds-heading">
+        <h2>My Builds</h2>
+      </div>
+      <button id="new-build-button" class="new-build-button">
+        <span class="plus-mark">+</span> New build
+      </button>
+      <div id="sidebar-builds" class="sidebar-builds"></div>
+    </nav>
 
-  <main id="app"></main>
+    <main id="app"></main>
+  </div>
 
-  <!-- Detail overlay: one item's full information -->
   <div id="detail-overlay" class="overlay hidden">
     <div class="overlay-content" id="detail-content"></div>
   </div>
 
-  <!-- Save / load overlay -->
   <div id="save-overlay" class="overlay hidden">
     <div class="overlay-content">
       <h2>Save / Load</h2>
@@ -40,6 +50,8 @@
     </div>
   </div>
 
+  <script src="game-data.js"></script>
+  <script src="icons.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

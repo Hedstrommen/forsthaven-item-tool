@@ -2,12 +2,14 @@
 
 A companion tool for the board game **Frosthaven** that lets you:
 
-1. Browse every item and potion in the game, with card images
-2. Unlock items into your personal pool as you acquire them in your campaign
-3. Search, filter (slot, potions) and sort your unlocked items
-4. Save any number of **builds** — a titled loadout for one character with notes
+1. Browse every item in the game in one big list, with card images, search, slot/potion filters and sorting
+2. Track your **campaigns**: check the buildings you have unlocked (Craftsman, Trading Post, Jeweler, Alchemist) to add their item sets, or add items from the other groups (Blueprints, Random items, other unlocks)
+3. Save any number of **builds** — a titled loadout for one character with notes — listed in the sidebar on the left
+4. Pick characters from Frosthaven, Gloomhaven, Jaws of the Lion and the Mercenary Packs, grouped by game
 5. Open any item to see its full card, crafting requirements, the complete crafting chain and which items it is used to build
-6. View a build with the character faded in the background and the equipment slots over the matching body parts (head, body, legs, hands)
+6. View a build with the character artwork and the equipment slots over the matching body parts (head, body, legs, hands)
+
+Card text uses inline SVG icons (attack, move, range, heal, shield, conditions, elements) matching the game's iconography.
 
 Data lives in your browser (localStorage) and can be exported to / imported from a JSON backup file.
 
@@ -31,7 +33,8 @@ src/FrosthavenItemTool.Application     Use cases and ports
 
 src/FrosthavenItemTool.CatalogGenerator   Console tool: raw dataset -> catalog.json
 
-docs/          Static web frontend (GitHub Pages), mirrors the domain rules
+app.js, game-data.js, icons.js, styles.css
+               Static web frontend (GitHub Pages), mirrors the domain rules
 data/          Raw community dataset (source of truth for the generator)
 tests/         Unit tests for the domain and application layers
 ```

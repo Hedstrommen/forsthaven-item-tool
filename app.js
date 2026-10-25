@@ -1,62 +1,31 @@
 // Frosthaven Item Tool - web frontend.
-// This file mirrors the C# domain and application layers (see src/).
-// The C# code is the source of truth for the rules; keep this in sync with it.
+// Mirrors the C# domain and application layers (see src/). The C# code is the
+// source of truth for the rules; keep this in sync with it.
 
 // ---------------------------------------------------------------------------
-// Domain data: characters (matches CharacterClass in the C# domain)
-// ---------------------------------------------------------------------------
-
-const CHARACTERS = [
-  { name: "Banner Spear", slug: "banner-spear" },
-  { name: "Blinkblade", slug: "blinkblade" },
-  { name: "Boneshaper", slug: "boneshaper" },
-  { name: "Crashing Tide", slug: "crashing-tide" },
-  { name: "Deathwalker", slug: "deathwalker" },
-  { name: "Drifter", slug: "drifter" },
-  { name: "Geminate", slug: "geminate" },
-  { name: "Hive", slug: "hive" },
-  { name: "Infuser", slug: "infuser" },
-  { name: "Metal Mosaic", slug: "metal-mosaic" },
-  { name: "Pain Conduit", slug: "pain-conduit" },
-  { name: "Pyroclast", slug: "pyroclast" },
-  { name: "Shattersong", slug: "shattersong" },
-  { name: "Snowdancer", slug: "snowdancer" },
-  { name: "Trapper", slug: "trapper" },
-  { name: "Deepwraith", slug: "deepwraith" },
-  { name: "Frozen Fist", slug: "frozen-fist" }
-];
-
-// Equipment slot names (matches EquipmentSlot in the C# domain)
-const SLOTS = ["head", "body", "legs", "one hand", "two hands", "small"];
-
-// ---------------------------------------------------------------------------
-// Application state (mirrors the C# session + storage ports)
+// Application state
 // ---------------------------------------------------------------------------
 
 let catalog = [];                 // every item in the game
-let unlockedItemNumbers = new Set(); // the player's unlocked pool
-let builds = [];                  // the player's saved builds
-let currentPage = "builds";        // builds (home) | browse | pool | build:<id>
-let detailItemNumber = null;      // item shown in the detail overlay
+let unlockedItemNumbers = new Set(); // items unlocked outside any campaign
+let campaigns = [];                // the player's campaigns
+let builds = [];                   // the player's saved builds
+let currentPage = "browse";        // browse | campaigns | campaign:<id> | build:<id>
+let activeCampaignId = null;       // campaign whose pool builds draw from
+let detailItemNumber = null;       // item shown in the detail overlay
 
 // ---------------------------------------------------------------------------
 // Storage adapter: browser localStorage (implements IPlayerDataStore)
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "frosthaven-item-tool-v1";
+const STORAGE_KEY = "frosthaven-item-tool-v2";
 
 function savePlayerData() {
   const data = {
     unlockedItemNumbers: Array.from(unlockedItemNumbers),
-    builds: builds.map(function (build) {
-      return {
-        id: build.id,
-        title: build.title,
-        characterIndex: build.characterIndex,
-        notes: build.notes,
-        equippedItemNumbers: build.equippedItemNumbers
-      };
-    })
+    campaigns: campaigns,
+    builds: builds,
+    activeCampaignId: activeCampaignId
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
@@ -64,25 +33,64 @@ function savePlayerData() {
 function loadPlayerData() {
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (raw === null) {
+    // Migration from the previous storage format: keep the old unlocks and
+    // builds, and give the player an empty first campaign.
+    const legacyRaw = window.localStorage.getItem("frosthaven-item-tool-v1");
+    if (legacyRaw !== null) {
+      try {
+        const legacy = JSON.parse(legacyRaw);
+        unlockedItemNumbers = new Set(legacy.unlockedItemNumbers || []);
+        builds = (legacy.builds || []).map(normalizeBuild);
+        campaigns = [createCampaign("My Campaign")];
+        activeCampaignId = campaigns[0].id;
+        savePlayerData();
+      } catch (error) {
+        unlockedItemNumbers = new Set();
+        builds = [];
+      }
+    }
     return;
   }
   try {
     const data = JSON.parse(raw);
     unlockedItemNumbers = new Set(data.unlockedItemNumbers || []);
-    builds = (data.builds || []).map(function (savedBuild) {
-      return {
-        id: savedBuild.id,
-        title: savedBuild.title,
-        characterIndex: savedBuild.characterIndex,
-        notes: savedBuild.notes,
-        equippedItemNumbers: savedBuild.equippedItemNumbers || []
-      };
-    });
+    campaigns = (data.campaigns || []).map(normalizeCampaign);
+    builds = (data.builds || []).map(normalizeBuild);
+    activeCampaignId = data.activeCampaignId || null;
   } catch (error) {
-    // Corrupt storage should never break the app; start fresh instead.
     unlockedItemNumbers = new Set();
+    campaigns = [];
     builds = [];
+    activeCampaignId = null;
   }
+}
+
+function createCampaign(name) {
+  return {
+    id: crypto.randomUUID(),
+    name: name,
+    unlockedBuildings: [],
+    unlockedItemNumbers: []
+  };
+}
+
+function normalizeCampaign(saved) {
+  return {
+    id: saved.id,
+    name: saved.name || "Campaign",
+    unlockedBuildings: saved.unlockedBuildings || [],
+    unlockedItemNumbers: saved.unlockedItemNumbers || []
+  };
+}
+
+function normalizeBuild(saved) {
+  return {
+    id: saved.id,
+    title: saved.title || "Build",
+    characterIndex: saved.characterIndex || 0,
+    notes: saved.notes || "",
+    equippedItemNumbers: saved.equippedItemNumbers || []
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -93,17 +101,22 @@ function findItem(itemNumber) {
   return catalog.find(function (item) { return item.number === itemNumber; }) || null;
 }
 
-function queryItems(searchText, slotFilter, onlyPotions, onlyUnlocked, sortCriterion) {
+function isPotionItem(item) {
+  // Potions are the items the Alchemist (Alchemy) building unlocks.
+  return item.source.indexOf("Alchemy") !== -1;
+}
+
+function queryItems(searchText, slotFilter, onlyPotions, pool, sortCriterion) {
   let results = catalog.slice();
 
-  if (onlyUnlocked) {
-    results = results.filter(function (item) { return unlockedItemNumbers.has(item.number); });
+  if (pool !== null) {
+    results = results.filter(function (item) { return pool.has(item.number); });
   }
   if (slotFilter !== null) {
     results = results.filter(function (item) { return item.slot === slotFilter; });
   }
   if (onlyPotions) {
-    results = results.filter(function (item) { return item.isPotion; });
+    results = results.filter(isPotionItem);
   }
   if (searchText.trim() !== "") {
     const needle = searchText.trim().toLowerCase();
@@ -158,6 +171,35 @@ function findItemsBuiltFrom(item) {
     .sort(function (a, b) { return a.number - b.number; });
 }
 
+function findBuildingUnlock(buildingName) {
+  return BUILDING_UNLOCKS.find(function (entry) { return entry.building === buildingName; }) || null;
+}
+
+// The items a campaign currently has available for builds.
+function campaignPool(campaign) {
+  const pool = new Set();
+  for (const buildingName of campaign.unlockedBuildings) {
+    const entry = findBuildingUnlock(buildingName);
+    if (entry !== null) {
+      entry.itemNumbers.forEach(function (number) { pool.add(number); });
+    }
+  }
+  campaign.unlockedItemNumbers.forEach(function (number) { pool.add(number); });
+  return pool;
+}
+
+function activeCampaign() {
+  return campaigns.find(function (candidate) { return candidate.id === activeCampaignId; }) || null;
+}
+
+function availablePool() {
+  const campaign = activeCampaign();
+  if (campaign !== null) {
+    return campaignPool(campaign);
+  }
+  return unlockedItemNumbers;
+}
+
 // ---------------------------------------------------------------------------
 // Build rules (mirror of ItemBuild.EquipItem in the C# domain)
 // ---------------------------------------------------------------------------
@@ -209,21 +251,6 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Strips the icon markup from the community card text so it reads cleanly.
-function cleanDescription(text) {
-  return text
-    .replace(/\^[a-z0-9-]+\^/g, "")
-    .replace(/\$[a-z0-9-]+\$/g, "")
-    .replace(/@[a-z0-9-]+@/g, "")
-    .replace(/[#~!{}]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function resourceIcon(kind) {
-  return kind; // kept as text; icons can replace this later
-}
-
 // ---------------------------------------------------------------------------
 // Page rendering
 // ---------------------------------------------------------------------------
@@ -231,18 +258,57 @@ function resourceIcon(kind) {
 const appElement = document.getElementById("app");
 
 function render() {
+  renderSidebarBuilds();
+  updateNavHighlight();
   if (currentPage === "browse") {
-    renderBrowsePage(false);
-  } else if (currentPage === "pool") {
-    renderBrowsePage(true);
+    renderBrowsePage();
+  } else if (currentPage === "campaigns") {
+    renderCampaignsPage();
+  } else if (currentPage.startsWith("campaign:")) {
+    renderSingleCampaignPage(currentPage.slice("campaign:".length));
   } else if (currentPage.startsWith("build:")) {
     renderSingleBuildPage(currentPage.slice("build:".length));
   } else {
-    renderBuildsPage();
+    renderBrowsePage();
   }
 }
 
-function renderBrowsePage(onlyUnlocked) {
+function renderSidebarBuilds() {
+  const container = document.getElementById("sidebar-builds");
+  container.innerHTML = "";
+  for (const build of builds) {
+    const character = CHARACTERS[build.characterIndex] || CHARACTERS[0];
+    const button = document.createElement("button");
+    button.className = "sidebar-build" + (currentPage === "build:" + build.id ? " active" : "");
+    button.innerHTML =
+      "<strong>" + escapeHtml(build.title) + "</strong>" +
+      "<span>" + escapeHtml(character.name) + " - " + build.equippedItemNumbers.length + " items</span>";
+    button.addEventListener("click", function () {
+      currentPage = "build:" + build.id;
+      render();
+    });
+    container.appendChild(button);
+  }
+  if (builds.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "sidebar-hint";
+    hint.textContent = "No builds yet. Create one above.";
+    container.appendChild(hint);
+  }
+}
+
+function updateNavHighlight() {
+  const activeNavName = currentPage.startsWith("build:") ? "builds" : currentPage;
+  document.querySelectorAll(".navlink[data-nav]").forEach(function (button) {
+    button.classList.toggle("active", button.dataset.nav === activeNavName);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// All Items page: a plain, big list of every item in the game
+// ---------------------------------------------------------------------------
+
+function renderBrowsePage() {
   const searchText = document.getElementById("search-input") ? document.getElementById("search-input").value : "";
   const slotFilter = document.getElementById("slot-filter") ? document.getElementById("slot-filter").value : "";
   const onlyPotions = document.getElementById("potion-filter") ? document.getElementById("potion-filter").checked : false;
@@ -252,11 +318,15 @@ function renderBrowsePage(onlyUnlocked) {
     searchText,
     slotFilter === "" ? null : slotFilter,
     onlyPotions,
-    onlyUnlocked,
+    null,
     sortCriterion
   );
 
   appElement.innerHTML = "";
+
+  const heading = document.createElement("h1");
+  heading.textContent = "All Items";
+  appElement.appendChild(heading);
 
   const controls = document.createElement("div");
   controls.className = "controls";
@@ -264,19 +334,16 @@ function renderBrowsePage(onlyUnlocked) {
     '<input id="search-input" type="search" placeholder="Search name or number..." />' +
     '<select id="slot-filter">' +
       '<option value="">All slots</option>' +
-      SLOTS.map(function (slot) { return '<option value="' + slot + '"' + (slotFilter === slot ? " selected" : "") + '>' + slot + "</option>"; }).join("") +
+      SLOTS.map(function (slot) { return '<option value="' + slot + '"' + (slotFilter === slot ? " selected" : "") + ">" + slot + "</option>"; }).join("") +
     "</select>" +
-    '<label><input id="potion-filter" type="checkbox"' + (onlyPotions ? " checked" : "") + ' /> potions only</label>' +
+    '<label class="filter-label"><input id="potion-filter" type="checkbox"' + (onlyPotions ? " checked" : "") + ' /> Potions only</label>' +
     '<select id="sort-select">' +
       '<option value="number"' + (sortCriterion === "number" ? " selected" : "") + '>Sort: number</option>' +
       '<option value="name"' + (sortCriterion === "name" ? " selected" : "") + '>Sort: name</option>' +
       '<option value="slot"' + (sortCriterion === "slot" ? " selected" : "") + '>Sort: slot</option>' +
-    "</select>" +
-    '<input id="unlock-number-input" type="number" min="1" placeholder="Unlock by number..." />' +
-    '<button id="unlock-number-button">Unlock</button>';
+    "</select>";
   appElement.appendChild(controls);
 
-  // Restore the typed search text so re-rendering does not clear the box.
   const searchInput = document.getElementById("search-input");
   searchInput.value = searchText;
   searchInput.addEventListener("input", render);
@@ -284,80 +351,23 @@ function renderBrowsePage(onlyUnlocked) {
   document.getElementById("potion-filter").addEventListener("change", render);
   document.getElementById("sort-select").addEventListener("change", render);
 
-  // Unlock by number: the player types an item number from a loot card and
-  // unlocks it directly, without searching for it first.
-  document.getElementById("unlock-number-button").addEventListener("click", function () {
-    const unlockNumberInput = document.getElementById("unlock-number-input");
-    const typedNumber = unlockNumberInput.value.trim();
-    if (typedNumber === "") {
-      return;
-    }
-    const itemNumber = Number(typedNumber);
-    const item = findItem(itemNumber);
-    if (item === null) {
-      unlockNumberInput.classList.add("invalid");
-      return;
-    }
-    unlockedItemNumbers.add(itemNumber);
-    savePlayerData();
-    unlockNumberInput.value = "";
-    unlockNumberInput.classList.remove("invalid");
-    // Open the item detail so the player can see what they just unlocked.
-    openDetailOverlay(itemNumber);
-    render();
-  });
-  document.getElementById("unlock-number-input").addEventListener("keydown", function (event) {
-    if (event.key === "Enter") {
-      document.getElementById("unlock-number-button").click();
-    }
-  });
-
   const grid = document.createElement("div");
   grid.className = "item-grid";
-  if (items.length === 0) {
-    const hint = document.createElement("p");
-    hint.className = "empty-hint";
-    hint.textContent = onlyUnlocked
-      ? "No unlocked items here yet. Unlock items on the All Items page."
-      : "No items match your search.";
-    appElement.appendChild(hint);
-    return;
-  }
   for (const item of items) {
     grid.appendChild(createItemCard(item));
   }
   appElement.appendChild(grid);
+  if (items.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = "No items match your search.";
+    appElement.appendChild(hint);
+  }
 }
 
 function createItemCard(item) {
   const card = document.createElement("div");
-  card.className = "item-card" + (unlockedItemNumbers.has(item.number) ? " unlocked" : "");
-
-  const isUnlocked = unlockedItemNumbers.has(item.number);
-
-  const actions = document.createElement("div");
-  actions.className = "item-actions";
-  if (isUnlocked) {
-    const lockButton = document.createElement("button");
-    lockButton.textContent = "Lock";
-    lockButton.className = "danger";
-    lockButton.addEventListener("click", function () {
-      unlockedItemNumbers.delete(item.number);
-      savePlayerData();
-      render();
-    });
-    actions.appendChild(lockButton);
-  } else {
-    const unlockButton = document.createElement("button");
-    unlockButton.textContent = "Unlock";
-    unlockButton.className = "primary";
-    unlockButton.addEventListener("click", function () {
-      unlockedItemNumbers.add(item.number);
-      savePlayerData();
-      render();
-    });
-    actions.appendChild(unlockButton);
-  }
+  card.className = "item-card";
 
   const thumbnailHtml = item.image !== ""
     ? '<img class="item-thumbnail" src="assets/items/' + item.image + '" alt="' + escapeHtml(item.name) + '" loading="lazy" />'
@@ -371,100 +381,292 @@ function createItemCard(item) {
     thumbnailHtml +
     '<div class="item-name">' + escapeHtml(item.name) + "</div>" +
     '<div class="item-source">' + escapeHtml(item.source) + "</div>" +
-    '<div class="item-desc">' + escapeHtml(cleanDescription(item.description)) + "</div>";
-  card.appendChild(actions);
+    '<div class="item-desc">' + window.fhIconText(item.description) + "</div>";
 
-  // Clicking the card body (not the buttons) opens the detail view.
-  card.addEventListener("click", function (event) {
-    if (event.target.closest("button")) {
-      return;
-    }
+  card.addEventListener("click", function () {
     openDetailOverlay(item.number);
   });
-
   return card;
 }
 
 // ---------------------------------------------------------------------------
-// Builds page
+// My Campaigns page
 // ---------------------------------------------------------------------------
 
-function renderBuildsPage() {
+function renderCampaignsPage() {
   appElement.innerHTML = "";
 
-  // The builds page is the home page: the list of current builds, plus the
-  // option to create a new build right there.
-  const newBuildButton = document.createElement("button");
-  newBuildButton.className = "navlink";
-  newBuildButton.textContent = "+ New build";
-  newBuildButton.addEventListener("click", function () {
-    const newBuild = {
-      id: crypto.randomUUID(),
-      title: "New build",
-      characterIndex: 0,
-      notes: "",
-      equippedItemNumbers: []
-    };
-    builds.push(newBuild);
+  const heading = document.createElement("h1");
+  heading.textContent = "My Campaigns";
+  appElement.appendChild(heading);
+
+  const addButton = document.createElement("button");
+  addButton.className = "primary-button";
+  addButton.textContent = "+ New campaign";
+  addButton.addEventListener("click", function () {
+    const campaign = createCampaign("Campaign " + (campaigns.length + 1));
+    campaigns.push(campaign);
+    activeCampaignId = campaign.id;
     savePlayerData();
-    // Open the fresh build immediately so the player can name it and equip items.
-    currentPage = "build:" + newBuild.id;
+    currentPage = "campaign:" + campaign.id;
     render();
   });
-  appElement.appendChild(newBuildButton);
+  appElement.appendChild(addButton);
 
   const list = document.createElement("div");
-  list.className = "build-list";
-  for (const build of builds) {
+  list.className = "campaign-list";
+  for (const campaign of campaigns) {
     const row = document.createElement("div");
-    row.className = "build-row";
-    const character = CHARACTERS[build.characterIndex];
+    row.className = "campaign-row" + (campaign.id === activeCampaignId ? " active" : "");
     row.innerHTML =
-      '<img src="assets/characters/fh-' + character.slug + '.webp" alt="' + escapeHtml(character.name) + '" />' +
-      "<div><strong>" + escapeHtml(build.title) + "</strong>" +
-      "<div class=item-slot>" + escapeHtml(character.name) + " - " +
-      build.equippedItemNumbers.length + " items</div></div>";
+      "<div><strong>" + escapeHtml(campaign.name) + "</strong>" +
+      "<div class='item-slot'>" + campaignPool(campaign).size + " unlocked items</div></div>";
+    const buttons = document.createElement("div");
+    buttons.className = "row-buttons";
     const openButton = document.createElement("button");
     openButton.textContent = "Open";
     openButton.addEventListener("click", function () {
-      currentPage = "build:" + build.id;
+      activeCampaignId = campaign.id;
+      currentPage = "campaign:" + campaign.id;
+      savePlayerData();
       render();
     });
-    row.appendChild(openButton);
+    const selectButton = document.createElement("button");
+    selectButton.textContent = campaign.id === activeCampaignId ? "Active for builds" : "Use for builds";
+    if (campaign.id === activeCampaignId) {
+      selectButton.disabled = true;
+    }
+    selectButton.addEventListener("click", function () {
+      activeCampaignId = campaign.id;
+      savePlayerData();
+      render();
+    });
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = "Delete";
+    deleteButton.className = "danger";
+    deleteButton.addEventListener("click", function () {
+      campaigns = campaigns.filter(function (candidate) { return candidate.id !== campaign.id; });
+      if (activeCampaignId === campaign.id) {
+        activeCampaignId = campaigns.length > 0 ? campaigns[0].id : null;
+      }
+      savePlayerData();
+      render();
+    });
+    buttons.appendChild(openButton);
+    buttons.appendChild(selectButton);
+    buttons.appendChild(deleteButton);
+    row.appendChild(buttons);
     list.appendChild(row);
+  }
+  if (campaigns.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = "No campaigns yet. Create one to track your unlocked items.";
+    list.appendChild(hint);
   }
   appElement.appendChild(list);
 }
 
-function renderSingleBuildPage(buildId) {
-  const build = builds.find(function (candidate) { return candidate.id === buildId; });
-  if (build === undefined) {
-    currentPage = "builds";
+// ---------------------------------------------------------------------------
+// Single campaign page: building unlocks plus extra item groups
+// ---------------------------------------------------------------------------
+
+function renderSingleCampaignPage(campaignId) {
+  const campaign = campaigns.find(function (candidate) { return candidate.id === campaignId; });
+  if (campaign === undefined) {
+    currentPage = "campaigns";
     render();
     return;
   }
+  activeCampaignId = campaign.id;
+
+  appElement.innerHTML = "";
 
   const backButton = document.createElement("button");
-  backButton.className = "navlink";
-  backButton.textContent = "<- Back to builds";
+  backButton.className = "back-button";
+  backButton.textContent = "<- All campaigns";
   backButton.addEventListener("click", function () {
-    currentPage = "builds";
+    currentPage = "campaigns";
     render();
   });
   appElement.appendChild(backButton);
 
-  const character = CHARACTERS[build.characterIndex];
+  const nameInput = document.createElement("input");
+  nameInput.className = "campaign-name";
+  nameInput.value = campaign.name;
+  nameInput.placeholder = "Campaign name";
+  nameInput.addEventListener("input", function () {
+    campaign.name = nameInput.value;
+    savePlayerData();
+  });
+  appElement.appendChild(nameInput);
+
+  const intro = document.createElement("p");
+  intro.className = "empty-hint";
+  intro.textContent = "Check the buildings you have unlocked to add their items, or add items from the other groups below.";
+  appElement.appendChild(intro);
+
+  const buildingsTitle = document.createElement("h2");
+  buildingsTitle.textContent = "Buildings";
+  appElement.appendChild(buildingsTitle);
+
+  const buildingsList = document.createElement("div");
+  buildingsList.className = "building-list";
+  for (const entry of BUILDING_UNLOCKS) {
+    const isUnlocked = campaign.unlockedBuildings.includes(entry.building);
+    const row = document.createElement("label");
+    row.className = "building-row" + (isUnlocked ? " unlocked" : "");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = isUnlocked;
+    checkbox.addEventListener("change", function () {
+      if (checkbox.checked) {
+        if (!campaign.unlockedBuildings.includes(entry.building)) {
+          campaign.unlockedBuildings.push(entry.building);
+        }
+      } else {
+        campaign.unlockedBuildings = campaign.unlockedBuildings.filter(function (name) {
+          return name !== entry.building;
+        });
+      }
+      savePlayerData();
+      render();
+    });
+    row.appendChild(checkbox);
+    const info = document.createElement("span");
+    info.className = "building-info";
+    info.innerHTML = "<strong>" + escapeHtml(entry.building) + "</strong>" +
+      '<span class="building-items">Items ' +
+      (entry.itemNumbers.length > 0
+        ? entry.itemNumbers[0] + "-" + entry.itemNumbers[entry.itemNumbers.length - 1]
+        : "none") +
+      "</span>";
+    row.appendChild(info);
+    const preview = document.createElement("button");
+    preview.className = "building-preview";
+    preview.textContent = "View items";
+    preview.addEventListener("click", function () {
+      openBuildingGroupOverlay(entry.building, entry.itemNumbers);
+    });
+    row.appendChild(preview);
+    buildingsList.appendChild(row);
+  }
+  appElement.appendChild(buildingsList);
+
+  const extraTitle = document.createElement("h2");
+  extraTitle.textContent = "Other items";
+  appElement.appendChild(extraTitle);
+
+  const pool = campaignPool(campaign);
+
+  for (const group of extraUnlockGroups()) {
+    const groupHeader = document.createElement("div");
+    groupHeader.className = "group-header";
+    groupHeader.innerHTML = "<h3>" + escapeHtml(group.label) + "</h3>";
+    const toggle = document.createElement("button");
+    toggle.className = "group-toggle";
+    const allIn = group.itemNumbers.every(function (number) { return pool.has(number); });
+    toggle.textContent = allIn ? "Remove all" : "Add all";
+    toggle.addEventListener("click", function () {
+      group.itemNumbers.forEach(function (number) {
+        const extraIndex = campaign.unlockedItemNumbers.indexOf(number);
+        if (allIn && extraIndex !== -1) {
+          campaign.unlockedItemNumbers.splice(extraIndex, 1);
+        } else if (!allIn && extraIndex === -1) {
+          campaign.unlockedItemNumbers.push(number);
+        }
+      });
+      savePlayerData();
+      render();
+    });
+    groupHeader.appendChild(toggle);
+    appElement.appendChild(groupHeader);
+
+    const grid = document.createElement("div");
+    grid.className = "campaign-item-grid";
+    for (const number of group.itemNumbers) {
+      const item = findItem(number);
+      if (item === null) {
+        continue;
+      }
+      const inPool = pool.has(number);
+      const chip = document.createElement("button");
+      chip.className = "item-chip" + (inPool ? " unlocked" : "");
+      chip.innerHTML =
+        '<span class="chip-number">#' + number + "</span> " + escapeHtml(item.name);
+      chip.title = item.slot;
+      chip.addEventListener("click", function () {
+        if (inPool) {
+          campaign.unlockedItemNumbers = campaign.unlockedItemNumbers.filter(function (candidate) {
+            return candidate !== number;
+          });
+        } else {
+          campaign.unlockedItemNumbers.push(number);
+        }
+        savePlayerData();
+        render();
+      });
+      grid.appendChild(chip);
+    }
+    appElement.appendChild(grid);
+  }
+}
+
+function openBuildingGroupOverlay(buildingName, itemNumbers) {
+  const content = document.getElementById("detail-content");
+  let html = "<h2>" + escapeHtml(buildingName) + "</h2><ul class='recipe-list'>";
+  for (const number of itemNumbers) {
+    const item = findItem(number);
+    if (item === null) {
+      continue;
+    }
+    html += "<li><button class='component-link' data-item='" + number + "'>#" + number + " " + escapeHtml(item.name) + "</button></li>";
+  }
+  html += "</ul><button class='close-overlay'>Close</button>";
+  content.innerHTML = html;
+  content.querySelectorAll(".component-link").forEach(function (linkButton) {
+    linkButton.addEventListener("click", function () {
+      openDetailOverlay(Number(linkButton.dataset.item));
+    });
+  });
+  content.querySelector(".close-overlay").addEventListener("click", closeDetailOverlay);
+  document.getElementById("detail-overlay").classList.remove("hidden");
+}
+
+// ---------------------------------------------------------------------------
+// Build page
+// ---------------------------------------------------------------------------
+
+function renderSingleBuildPage(buildId) {
+  const build = builds.find(function (candidate) { return candidate.id === buildId; });
+  if (build === undefined) {
+    currentPage = "browse";
+    render();
+    return;
+  }
 
   appElement.innerHTML = "";
 
   const layout = document.createElement("div");
   layout.className = "build-layout";
 
-  // The character stage: faded character art with slot markers on body parts.
+  // The character stage: the artwork portion only, with slot markers placed
+  // over the matching body parts.
+  const character = CHARACTERS[build.characterIndex] || CHARACTERS[0];
+  const hasArt = character.slug !== undefined;
   const stage = document.createElement("div");
-  stage.className = "character-stage";
-  stage.innerHTML =
-    '<img class="background" src="assets/characters/fh-' + character.slug + '.webp" alt="' + escapeHtml(character.name) + '" />';
+  stage.className = "character-stage" + (hasArt ? "" : " no-art");
+  if (hasArt) {
+    stage.innerHTML =
+      '<div class="artwork-crop">' +
+        '<img class="background" src="assets/characters/fh-' + character.slug + '.webp" alt="' + escapeHtml(character.name) + '" />' +
+      "</div>";
+  } else {
+    const namePlate = document.createElement("div");
+    namePlate.className = "stage-placeholder";
+    namePlate.textContent = character.name;
+    stage.appendChild(namePlate);
+  }
   stage.appendChild(createSlotMarker(build, "head", "Head", "slot-head", 0));
   stage.appendChild(createSlotMarker(build, "body", "Body", "slot-body", 0));
   stage.appendChild(createSlotMarker(build, "legs", "Legs", "slot-legs", 0));
@@ -473,7 +675,7 @@ function renderSingleBuildPage(buildId) {
   stage.appendChild(createSlotMarker(build, "small", "Small items", "slot-small", 0));
   layout.appendChild(stage);
 
-  // The form: title, character picker (icons), notes.
+  // The form: title, character picker (names grouped by game), notes.
   const form = document.createElement("div");
   form.className = "build-form";
 
@@ -483,26 +685,32 @@ function renderSingleBuildPage(buildId) {
   titleInput.addEventListener("input", function () {
     build.title = titleInput.value;
     savePlayerData();
+    renderSidebarBuilds();
   });
   form.appendChild(titleInput);
 
-  const iconGrid = document.createElement("div");
-  iconGrid.className = "icon-grid";
-  CHARACTERS.forEach(function (candidate, index) {
-    const iconButton = document.createElement("button");
-    if (index === build.characterIndex) {
-      iconButton.className = "selected";
-    }
-    iconButton.title = candidate.name;
-    iconButton.innerHTML = '<img src="assets/characters/fh-' + candidate.slug + '.webp" alt="' + escapeHtml(candidate.name) + '" />';
-    iconButton.addEventListener("click", function () {
-      build.characterIndex = index;
-      savePlayerData();
-      render();
+  const picker = document.createElement("select");
+  CHARACTER_GROUPS.forEach(function (group) {
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = group.game;
+    group.characters.forEach(function (candidate) {
+      const index = CHARACTERS.indexOf(candidate);
+      const option = document.createElement("option");
+      option.value = index;
+      option.textContent = candidate.name;
+      if (index === build.characterIndex) {
+        option.selected = true;
+      }
+      optgroup.appendChild(option);
     });
-    iconGrid.appendChild(iconButton);
+    picker.appendChild(optgroup);
   });
-  form.appendChild(iconGrid);
+  picker.addEventListener("change", function () {
+    build.characterIndex = Number(picker.value);
+    savePlayerData();
+    render();
+  });
+  form.appendChild(picker);
 
   const notesArea = document.createElement("textarea");
   notesArea.value = build.notes;
@@ -517,7 +725,6 @@ function renderSingleBuildPage(buildId) {
   statusLine.className = "status-text";
   form.appendChild(statusLine);
 
-  // The items currently in the build.
   const equippedTitle = document.createElement("h3");
   equippedTitle.textContent = "Equipped items";
   form.appendChild(equippedTitle);
@@ -552,16 +759,16 @@ function renderSingleBuildPage(buildId) {
   }
   form.appendChild(equippedList);
 
-  // Picker: add unlocked items to the build.
   const pickerTitle = document.createElement("h3");
-  pickerTitle.textContent = "Add from unlocked items";
+  pickerTitle.textContent = "Add items";
   form.appendChild(pickerTitle);
 
+  const pool = availablePool();
   const pickerList = document.createElement("div");
-  const unlockedItems = catalog.filter(function (item) {
-    return unlockedItemNumbers.has(item.number) && !build.equippedItemNumbers.includes(item.number);
+  const poolItems = catalog.filter(function (item) {
+    return pool.has(item.number) && !build.equippedItemNumbers.includes(item.number);
   });
-  for (const item of unlockedItems) {
+  for (const item of poolItems) {
     const pickerRow = document.createElement("div");
     pickerRow.className = "build-row";
     pickerRow.innerHTML = "<div>#" + item.number + " " + escapeHtml(item.name) +
@@ -581,22 +788,24 @@ function renderSingleBuildPage(buildId) {
     pickerRow.appendChild(addButton);
     pickerList.appendChild(pickerRow);
   }
-  if (unlockedItems.length === 0) {
+  if (poolItems.length === 0) {
     const hint = document.createElement("p");
     hint.className = "empty-hint";
-    hint.textContent = "Unlock items on the All Items page first.";
+    const campaign = activeCampaign();
+    hint.textContent = campaign === null
+      ? "Select a campaign in My Campaigns to unlock items for your builds."
+      : "Unlock more items in your campaign first.";
     pickerList.appendChild(hint);
   }
   form.appendChild(pickerList);
 
-  // Delete build button.
   const deleteButton = document.createElement("button");
   deleteButton.textContent = "Delete build";
   deleteButton.className = "danger";
   deleteButton.addEventListener("click", function () {
     builds = builds.filter(function (candidate) { return candidate.id !== build.id; });
     savePlayerData();
-    currentPage = "builds";
+    currentPage = "browse";
     render();
   });
   form.appendChild(deleteButton);
@@ -606,8 +815,6 @@ function renderSingleBuildPage(buildId) {
 }
 
 // A slot marker on the character stage. Filled slots show the item name.
-// markerIndex picks which equipped item of that slot is shown, so the two
-// one-hand markers can show two different items.
 function createSlotMarker(build, slotName, markerLabel, positionClass, markerIndex) {
   const equippedInSlot = build.equippedItemNumbers
     .map(findItem)
@@ -630,7 +837,7 @@ function createSlotMarker(build, slotName, markerLabel, positionClass, markerInd
 }
 
 // ---------------------------------------------------------------------------
-// Detail overlay (goal 6: every item gets its own space)
+// Detail overlay
 // ---------------------------------------------------------------------------
 
 function openDetailOverlay(itemNumber) {
@@ -656,13 +863,13 @@ function openDetailOverlay(itemNumber) {
         "<h2>#" + item.number + " " + escapeHtml(item.name) + "</h2>" +
         "<p><strong>Slot:</strong> " + escapeHtml(item.slot) +
         " &nbsp; <strong>Source:</strong> " + escapeHtml(item.source) + "</p>" +
-        "<p>" + escapeHtml(cleanDescription(item.description)) + "</p>" +
+        "<p>" + window.fhIconText(item.description) + "</p>" +
         recipeHtml +
         (chainItems.length > 0
           ? "<h3>Full crafting chain</h3><p class=empty-hint>Everything you must gather to craft this from scratch:</p>" +
             "<ul class=recipe-list>" +
             chainItems.map(function (chainItem) {
-              return '<li><button class="component-link" data-item="' + chainItem.number + '"> #' + chainItem.number + " " + escapeHtml(chainItem.name) + "</button></li>";
+              return "<li><button class=\"component-link\" data-item=\"" + chainItem.number + "\"> #" + chainItem.number + " " + escapeHtml(chainItem.name) + "</button></li>";
             }).join("") +
             "</ul>"
           : "") +
@@ -670,7 +877,7 @@ function openDetailOverlay(itemNumber) {
           ? "<h3>Used to build</h3>" +
             "<ul class=recipe-list>" +
             parentItems.map(function (parentItem) {
-              return "<li><button class=component-link data-item=" + parentItem.number + ">#" + parentItem.number + " " + escapeHtml(parentItem.name) + "</button></li>";
+              return "<li><button class=\"component-link\" data-item=\"" + parentItem.number + "\">#" + parentItem.number + " " + escapeHtml(parentItem.name) + "</button></li>";
             }).join("") +
             "</ul>"
           : "") +
@@ -678,7 +885,6 @@ function openDetailOverlay(itemNumber) {
       "</div>" +
     "</div>";
 
-  // Component links navigate the overlay to that item.
   content.querySelectorAll(".component-link").forEach(function (linkButton) {
     linkButton.addEventListener("click", function () {
       openDetailOverlay(Number(linkButton.dataset.item));
@@ -701,11 +907,15 @@ function buildRecipeHtml(item) {
     const componentItem = findItem(componentNumber);
     const label = componentItem === null
       ? "Item #" + componentNumber
-      : '<button class="component-link" data-item="' + componentNumber + '">Item #' + componentNumber + " " + escapeHtml(componentItem.name) + "</button>";
+      : "<button class=\"component-link\" data-item=\"" + componentNumber + "\">Item #" + componentNumber + " " + escapeHtml(componentItem.name) + "</button>";
     recipeHtml += "<li>" + label + "</li>";
   }
   recipeHtml += "</ul>";
   return recipeHtml;
+}
+
+function resourceIcon(kind) {
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 
 function closeDetailOverlay() {
@@ -713,13 +923,15 @@ function closeDetailOverlay() {
 }
 
 // ---------------------------------------------------------------------------
-// Save / load overlay (goal: localStorage + JSON import/export)
+// Save / load overlay
 // ---------------------------------------------------------------------------
 
 function exportPlayerData() {
   const data = {
     unlockedItemNumbers: Array.from(unlockedItemNumbers),
-    builds: builds
+    campaigns: campaigns,
+    builds: builds,
+    activeCampaignId: activeCampaignId
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const downloadUrl = URL.createObjectURL(blob);
@@ -736,7 +948,9 @@ function importPlayerData(file) {
     try {
       const data = JSON.parse(reader.result);
       unlockedItemNumbers = new Set(data.unlockedItemNumbers || []);
-      builds = data.builds || [];
+      campaigns = (data.campaigns || []).map(normalizeCampaign);
+      builds = (data.builds || []).map(normalizeBuild);
+      activeCampaignId = data.activeCampaignId || null;
       savePlayerData();
       document.getElementById("import-status").textContent = "Backup restored.";
       render();
@@ -754,19 +968,23 @@ function importPlayerData(file) {
 document.querySelectorAll("[data-nav]").forEach(function (navButton) {
   navButton.addEventListener("click", function () {
     currentPage = navButton.dataset.nav;
-    updateNavHighlight();
     render();
   });
 });
 
-// Keeps the top navigation in sync with the current page. Build detail pages
-// still highlight the Builds tab.
-function updateNavHighlight() {
-  const activeNavName = currentPage.startsWith("build:") ? "builds" : currentPage;
-  document.querySelectorAll(".navlink[data-nav]").forEach(function (button) {
-    button.classList.toggle("active", button.dataset.nav === activeNavName);
-  });
-}
+document.getElementById("new-build-button").addEventListener("click", function () {
+  const newBuild = {
+    id: crypto.randomUUID(),
+    title: "New build",
+    characterIndex: 0,
+    notes: "",
+    equippedItemNumbers: []
+  };
+  builds.push(newBuild);
+  savePlayerData();
+  currentPage = "build:" + newBuild.id;
+  render();
+});
 
 document.getElementById("save-load-button").addEventListener("click", function () {
   document.getElementById("save-overlay").classList.remove("hidden");
