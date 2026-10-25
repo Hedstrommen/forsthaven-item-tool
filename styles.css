@@ -383,32 +383,27 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
 
 .build-layout { display: flex; gap: 24px; flex-wrap: wrap; }
 
-/* Character stage: bigger, artwork-only. The card art is landscape with the
-   illustration on the left ~60%; scale it up and crop to the artwork. */
+/* Character stage: original artwork at original size, with a 3x3 grid of
+   slot markers laid over it covering the art with even padding. */
 .character-stage {
   position: relative;
-  width: 460px;
-  max-width: 100%;
   flex-shrink: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   background: var(--surface);
+  width: max-content;
+  max-width: 100%;
 }
-.artwork-crop {
-  position: relative;
-  height: 540px;
-  overflow: hidden;
-}
-.artwork-crop img.background {
-  position: absolute;
-  top: -12%;
-  left: -45%;
-  width: 200%;
+.artwork-frame { position: relative; display: inline-block; line-height: 0; }
+.artwork-frame img.background {
+  display: block;
+  width: 100%;
   opacity: 0.92;
 }
 .stage-placeholder {
-  height: 540px;
+  height: 420px;
+  width: 400px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -417,34 +412,45 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
   color: var(--muted);
 }
 
-/* Slot markers: clustered close together so they all cover the artwork */
+/* The 3x3 slot grid stretched over the artwork with even padding */
+.slot-grid {
+  position: absolute;
+  inset: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 10px;
+  z-index: 2;
+}
+
 .slot-marker {
   position: absolute;
-  width: 92px;
-  height: 64px;
   border-radius: 10px;
-  background: rgba(20, 34, 48, 0.88);
+  background: rgba(20, 34, 48, 0.85);
   border: 2px solid var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   text-align: center;
   cursor: pointer;
   color: var(--text);
   padding: 2px;
-  z-index: 2;
+  z-index: 3;
 }
-.slot-marker.filled { border-color: var(--accent-warm); background: rgba(29, 49, 69, 0.95); }
+.slot-marker.filled { border-color: var(--accent-warm); background: rgba(29, 49, 69, 0.92); }
 .slot-marker.empty { border-style: dashed; opacity: 0.8; }
 
-/* Tight group over the artwork (left side of the stage) */
-.slot-head { top: 6%; left: 34%; transform: translateX(-50%); }
-.slot-body { top: 24%; left: 12%; }
-.slot-legs { top: 56%; left: 12%; }
-.slot-hand-one { top: 40%; left: 34%; }
-.slot-hand-two { top: 40%; right: 30%; }
-.slot-small { top: 74%; left: 34%; transform: translateX(-50%); }
+/* 3x3 grid cell positions, derived from the padded grid */
+.slot-r0c0 { top: 16px; left: 16px; }
+.slot-r0c1 { top: 16px; left: calc(16px + (100% - 32px) / 3 + 10px); }
+.slot-r0c2 { top: 16px; right: 16px; }
+.slot-r1c0 { top: calc(16px + (100% - 32px) / 3 + 10px); left: 16px; }
+.slot-r1c1 { top: calc(16px + (100% - 32px) / 3 + 10px); left: calc(16px + (100% - 32px) / 3 + 10px); }
+.slot-r1c2 { top: calc(16px + (100% - 32px) / 3 + 10px); right: 16px; }
+.slot-r2c0 { bottom: 16px; left: 16px; }
+.slot-r2c1 { bottom: 16px; left: calc(16px + (100% - 32px) / 3 + 10px); }
+.slot-r2c2 { bottom: 16px; right: 16px; }
 
 .build-form { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 280px; }
 .build-form input, .build-form select, .build-form textarea {
@@ -462,6 +468,65 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
 
 .wishlist-results { margin-top: 6px; }
 .wishlist-row { border-style: dashed; }
+
+/* Per-slot dropdown pickers on the build page */
+.slot-picker-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+.slot-picker {
+  flex: 1;
+  min-width: 140px;
+  background: var(--surface-bright);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+/* Add-to-build row in the detail overlay */
+.add-to-build {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.add-to-build select {
+  background: var(--surface-bright);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 8px;
+  font-family: inherit;
+}
+.add-to-build .primary-button { margin: 0; padding: 7px 14px; font-size: 0.9rem; }
+
+/* Campaign page view toggle */
+.view-toggle {
+  display: flex;
+  gap: 0;
+  margin: 12px 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  width: max-content;
+}
+.view-toggle button {
+  background: var(--surface);
+  color: var(--muted);
+  border: none;
+  padding: 9px 18px;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+}
+.view-toggle button.active {
+  background: var(--surface-bright);
+  color: var(--parchment);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
 
 .status-text { color: var(--muted); font-size: 0.85rem; min-height: 1.2em; }
 .error-text { color: var(--danger); }

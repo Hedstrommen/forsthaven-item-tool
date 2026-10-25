@@ -121,7 +121,7 @@ function queryItems(searchText, slotFilter, onlyPotions, pool, sortCriterion, so
     results = results.filter(isPotionItem);
   }
   if (sourceFilter !== null) {
-    results = results.filter(function (item) { return item.source === sourceFilter; });
+    results = results.filter(function (item) { return sourceMatchesFilter(item, sourceFilter); });
   }
   if (searchText.trim() !== "") {
     const needle = searchText.trim().toLowerCase();
@@ -339,6 +339,55 @@ function updateNavHighlight() {
 
 let browseSourceFilter = "";
 let renderBrowsePotionsOnly = false;
+let browseCampaignFilter = "";
+let browseAvailabilityFilter = "all"; // all | unlocked | craftable | purchasable
+let browseCategoryFilter = "";        // grouped source category
+let campaignViewMode = "unlock";       // unlock | available
+
+// Grouped source categories: many specific sources roll up into one entry,
+// while the specific sources stay selectable too.
+function sourceCategory(source) {
+  if (source.indexOf("Alchemy") !== -1) { return "Alchemy"; }
+  if (source.indexOf("Treasure") !== -1) { return "Treasure"; }
+  if (source.indexOf("Solo Scenario") !== -1) { return "Solo scenario rewards"; }
+  if (/^Scenario \d/.test(source)) { return "Scenario rewards"; }
+  if (/^(WR-|Road)/.test(source)) { return "Road events"; }
+  if (/^(WO-|Outpost|Boat Event)/.test(source)) { return "Outpost events"; }
+  return null;
+}
+
+function sourceMatchesFilter(item, sourceFilter) {
+  if (sourceFilter === "" || sourceFilter === null) {
+    return true;
+  }
+  if (sourceFilter.indexOf("category:") === 0) {
+    return sourceCategory(item.source) === sourceFilter.slice("category:".length);
+  }
+  return item.source === sourceFilter;
+}
+
+function sourceFilterOptions() {
+  const options = [];
+  const categories = [];
+  const specifics = new Set();
+  catalog.forEach(function (item) {
+    const category = sourceCategory(item.source);
+    if (category !== null) {
+      if (!categories.includes(category)) {
+        categories.push(category);
+      }
+    } else {
+      specifics.add(item.source);
+    }
+  });
+  categories.sort();
+  Array.from(specifics).sort().forEach(function (source) {
+    options.push({ value: source, label: source.replace(/\n/g, " / ") });
+  });
+  return options.concat(categories.map(function (category) {
+    return { value: "category:" + category, label: category + " (all)" };
+  }));
+}
 
 function allSources() {
   const sources = new Set();
@@ -354,15 +403,39 @@ function renderBrowsePage() {
   const onlyPotions = renderBrowsePotionsOnly;
   const sortCriterion = document.getElementById("sort-select") ? document.getElementById("sort-select").value : "number";
   const sourceFilter = browseSourceFilter;
+  const campaignFilter = browseCampaignFilter;
+  const availabilityFilter = browseAvailabilityFilter;
 
-  const items = queryItems(
+  let pool = null;
+  if (campaignFilter !== "") {
+    const campaign = campaigns.find(function (candidate) { return candidate.id === campaignFilter; });
+    pool = campaign !== undefined ? campaignPool(campaign) : new Set();
+  }
+  if (availabilityFilter === "unlocked") {
+    const campaign = campaigns.find(function (candidate) { return candidate.id === campaignFilter; });
+    if (campaign !== undefined) {
+      pool = campaignPool(campaign);
+    } else if (activeCampaign() !== null) {
+      pool = campaignPool(activeCampaign());
+    }
+  }
+
+  let items = queryItems(
     searchText,
     slotFilter === "" ? null : slotFilter,
     onlyPotions,
-    null,
+    pool,
     sortCriterion,
     sourceFilter === "" ? null : sourceFilter
   );
+  if (availabilityFilter === "craftable") {
+    items = items.filter(function (item) { return (item.resources || []).length > 0 || (item.components || []).length > 0; });
+  }
+  if (availabilityFilter === "purchasable") {
+    items = items.filter(function (item) {
+      return /^(Craftsman|Trading Post|Jeweler|Initially)/.test(item.source);
+    });
+  }
 
   appElement.innerHTML = "";
 
@@ -380,16 +453,26 @@ function renderBrowsePage() {
     "</select>" +
     '<select id="source-filter">' +
       '<option value="">All sources</option>' +
-      allSources().map(function (source) { return '<option value="' + escapeHtml(source) + '"' + (sourceFilter === source ? " selected" : "") + ">" + escapeHtml(source.replace(/\n/g, " / ")) + "</option>"; }).join("") +
+      sourceFilterOptions().map(function (option) { return '<option value="' + escapeHtml(option.value) + '"' + (sourceFilter === option.value ? " selected" : "") + ">" + escapeHtml(option.label) + "</option>"; }).join("") +
+    "</select>" +
+    '<select id="campaign-filter">' +
+      '<option value="">All campaigns</option>' +
+      campaigns.map(function (campaign) { return '<option value="' + campaign.id + '"' + (campaignFilter === campaign.id ? " selected" : "") + ">" + escapeHtml(campaign.name) + "</option>"; }).join("") +
+    "</select>" +
+    '<select id="availability-filter">' +
+      '<option value="all"' + (availabilityFilter === "all" ? " selected" : "") + '>Show: all items</option>' +
+      '<option value="unlocked"' + (availabilityFilter === "unlocked" ? " selected" : "") + '>Show: unlocked in campaign</option>' +
+    "</select>" +
+    '<select id="availability-boolean">' +
+      '<option value="all">Availability</option>' +
+      '<option value="craftable"' + (availabilityFilter === "craftable" ? " selected" : "") + '>Craftable</option>' +
+      '<option value="purchasable"' + (availabilityFilter === "purchasable" ? " selected" : "") + '>Purchasable</option>' +
     "</select>" +
     '<select id="sort-select">' +
       '<option value="number"' + (sortCriterion === "number" ? " selected" : "") + '>Sort: number</option>' +
       '<option value="name"' + (sortCriterion === "name" ? " selected" : "") + '>Sort: name</option>' +
       '<option value="slot"' + (sortCriterion === "slot" ? " selected" : "") + '>Sort: slot</option>' +
-    "</select>" +
-    '<button type="button" id="potion-filter" class="toggle-button' + (onlyPotions ? " on" : "") + '" aria-pressed="' + onlyPotions + '">' +
-      'Potions only' +
-    "</button>";
+    "</select>";
   appElement.appendChild(controls);
 
   const searchInput = document.getElementById("search-input");
@@ -400,11 +483,23 @@ function renderBrowsePage() {
     browseSourceFilter = document.getElementById("source-filter").value;
     render();
   });
-  document.getElementById("sort-select").addEventListener("change", render);
-  document.getElementById("potion-filter").addEventListener("click", function () {
-    renderBrowsePotionsOnly = !renderBrowsePotionsOnly;
+  document.getElementById("campaign-filter").addEventListener("change", function () {
+    browseCampaignFilter = document.getElementById("campaign-filter").value;
     render();
   });
+  document.getElementById("availability-filter").addEventListener("change", function () {
+    browseAvailabilityFilter = document.getElementById("availability-filter").value;
+    if (browseAvailabilityFilter !== "unlocked") {
+      // keep the boolean filter in sync when switching back
+      browseAvailabilityFilter = document.getElementById("availability-boolean").value === "all" && browseAvailabilityFilter !== "craftable" && browseAvailabilityFilter !== "purchasable" ? "all" : browseAvailabilityFilter;
+    }
+    render();
+  });
+  document.getElementById("availability-boolean").addEventListener("change", function () {
+    browseAvailabilityFilter = document.getElementById("availability-boolean").value;
+    render();
+  });
+  document.getElementById("sort-select").addEventListener("change", render);
 
   if (sourceFilter !== null) {
     const sourceHeading = document.createElement("p");
@@ -617,6 +712,49 @@ function renderSingleCampaignPage(campaignId) {
   intro.textContent = "Check the buildings you have unlocked to add their items, or add items from the other groups below.";
   appElement.appendChild(intro);
 
+  // Static view toggle: unlock management (default) or available items view.
+  const viewToggle = document.createElement("div");
+  viewToggle.className = "view-toggle";
+  const unlockButton = document.createElement("button");
+  unlockButton.textContent = "Unlock items";
+  unlockButton.className = campaignViewMode === "unlock" ? "active" : "";
+  unlockButton.addEventListener("click", function () {
+    campaignViewMode = "unlock";
+    render();
+  });
+  const availableButton = document.createElement("button");
+  availableButton.textContent = "Available items";
+  availableButton.className = campaignViewMode === "available" ? "active" : "";
+  availableButton.addEventListener("click", function () {
+    campaignViewMode = "available";
+    render();
+  });
+  viewToggle.appendChild(unlockButton);
+  viewToggle.appendChild(availableButton);
+  appElement.appendChild(viewToggle);
+
+  const pool = campaignPool(campaign);
+
+  if (campaignViewMode === "available") {
+    // Available items: every unlocked item, presented like the All Items page.
+    const grid = document.createElement("div");
+    grid.className = "item-grid";
+    const availableItems = catalog
+      .filter(function (item) { return pool.has(item.number); })
+      .sort(function (first, second) { return first.number - second.number; });
+    for (const item of availableItems) {
+      grid.appendChild(createItemCard(item));
+    }
+    appElement.appendChild(grid);
+    if (availableItems.length === 0) {
+      const hint = document.createElement("p");
+      hint.className = "empty-hint";
+      hint.textContent = "Nothing unlocked yet. Switch to Unlock items to add items.";
+      appElement.appendChild(hint);
+    }
+    return;
+  }
+
   const buildingsTitle = document.createElement("h2");
   buildingsTitle.textContent = "Buildings";
   appElement.appendChild(buildingsTitle);
@@ -668,29 +806,10 @@ function renderSingleCampaignPage(campaignId) {
   extraTitle.textContent = "Other items";
   appElement.appendChild(extraTitle);
 
-  const pool = campaignPool(campaign);
-
   for (const group of extraUnlockGroups()) {
     const groupHeader = document.createElement("div");
     groupHeader.className = "group-header";
     groupHeader.innerHTML = "<h3>" + escapeHtml(group.label) + "</h3>";
-    const toggle = document.createElement("button");
-    toggle.className = "group-toggle";
-    const allIn = group.itemNumbers.every(function (number) { return pool.has(number); });
-    toggle.textContent = allIn ? "Remove all" : "Add all";
-    toggle.addEventListener("click", function () {
-      group.itemNumbers.forEach(function (number) {
-        const extraIndex = campaign.unlockedItemNumbers.indexOf(number);
-        if (allIn && extraIndex !== -1) {
-          campaign.unlockedItemNumbers.splice(extraIndex, 1);
-        } else if (!allIn && extraIndex === -1) {
-          campaign.unlockedItemNumbers.push(number);
-        }
-      });
-      savePlayerData();
-      render();
-    });
-    groupHeader.appendChild(toggle);
     appElement.appendChild(groupHeader);
 
     const grid = document.createElement("div");
@@ -761,16 +880,19 @@ function renderSingleBuildPage(buildId) {
   const layout = document.createElement("div");
   layout.className = "build-layout";
 
-  // The character stage: the artwork portion only, with slot markers placed
-  // over the matching body parts.
+  // The character stage: original artwork at original size with a 3x3 grid
+  // of slot markers on top, covering the artwork with even padding.
   const character = CHARACTERS[build.characterIndex] || CHARACTERS[0];
   const hasArt = character.slug !== undefined;
   const stage = document.createElement("div");
   stage.className = "character-stage" + (hasArt ? "" : " no-art");
   if (hasArt) {
     stage.innerHTML =
-      '<div class="artwork-crop">' +
+      '<div class="artwork-frame">' +
         '<img class="background" src="assets/characters/fh-' + character.slug + '.webp" alt="' + escapeHtml(character.name) + '" />' +
+        '<div class="slot-grid">' +
+          '<div class="slot-cell"></div><div class="slot-cell"></div><div class="slot-cell"></div>' +
+        "</div>" +
       "</div>";
   } else {
     const namePlate = document.createElement("div");
@@ -778,12 +900,16 @@ function renderSingleBuildPage(buildId) {
     namePlate.textContent = character.name;
     stage.appendChild(namePlate);
   }
-  stage.appendChild(createSlotMarker(build, "head", "Head", "slot-head", 0));
-  stage.appendChild(createSlotMarker(build, "body", "Body", "slot-body", 0));
-  stage.appendChild(createSlotMarker(build, "legs", "Legs", "slot-legs", 0));
-  stage.appendChild(createSlotMarker(build, "one hand", "Hand 1", "slot-hand-one", 0));
-  stage.appendChild(createSlotMarker(build, "one hand", "Hand 2", "slot-hand-two", 1));
-  stage.appendChild(createSlotMarker(build, "small", "Small items", "slot-small", 0));
+  // 3x3 order: head, body, legs / hand, hand, item / item, item, item
+  stage.appendChild(createSlotMarker(build, "head", "Head", "slot-r0c0", 0));
+  stage.appendChild(createSlotMarker(build, "body", "Body", "slot-r0c1", 0));
+  stage.appendChild(createSlotMarker(build, "legs", "Legs", "slot-r0c2", 0));
+  stage.appendChild(createSlotMarker(build, "one hand", "Hand 1", "slot-r1c0", 0));
+  stage.appendChild(createSlotMarker(build, "one hand", "Hand 2", "slot-r1c1", 1));
+  stage.appendChild(createSlotMarker(build, "small", "Item", "slot-r1c2", 0));
+  stage.appendChild(createSlotMarker(build, "small", "Item", "slot-r2c0", 1));
+  stage.appendChild(createSlotMarker(build, "small", "Item", "slot-r2c1", 2));
+  stage.appendChild(createSlotMarker(build, "small", "Item", "slot-r2c2", 3));
   layout.appendChild(stage);
 
   // The form: title, character picker (names grouped by game), notes.
@@ -899,19 +1025,55 @@ function renderSingleBuildPage(buildId) {
   pickerTitle.textContent = "Add items";
   form.appendChild(pickerTitle);
 
+  // Per-slot dropdowns: each only lists campaign-unlocked items for that slot.
   const pool = buildPool(build);
-  const pickerList = document.createElement("div");
-  const poolItems = catalog.filter(function (item) {
-    return pool.has(item.number) && !build.equippedItemNumbers.includes(item.number);
-  });
-  for (const item of poolItems) {
-    const pickerRow = document.createElement("div");
-    pickerRow.className = "build-row";
-    pickerRow.innerHTML = "<div>#" + item.number + " " + escapeHtml(item.name) +
-      '<div class="item-slot">' + escapeHtml(item.slot) + "</div></div>";
-    const addButton = document.createElement("button");
-    addButton.textContent = "Equip";
-    addButton.addEventListener("click", function () {
+  const slotGroups = [
+    { label: "Head", slot: "head" },
+    { label: "Body", slot: "body" },
+    { label: "Legs", slot: "legs" },
+    { label: "One hand", slot: "one hand" },
+    { label: "Two hands", slot: "two hands" },
+    { label: "Items", slot: "small" },
+    { label: "Potions", slot: null, potionsOnly: true }
+  ];
+  let anyOptions = false;
+  const pickerWrap = document.createElement("div");
+  pickerWrap.className = "slot-picker-wrap";
+  for (const group of slotGroups) {
+    const select = document.createElement("select");
+    select.className = "slot-picker";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = group.label;
+    select.appendChild(placeholder);
+    const candidates = catalog.filter(function (item) {
+      if (!pool.has(item.number) || build.equippedItemNumbers.includes(item.number)) {
+        return false;
+      }
+      if (group.potionsOnly === true) {
+        return isPotionItem(item);
+      }
+      return item.slot === group.slot;
+    });
+    candidates.sort(function (first, second) { return first.number - second.number; });
+    for (const item of candidates) {
+      const option = document.createElement("option");
+      option.value = item.number;
+      option.textContent = "#" + item.number + " " + item.name;
+      select.appendChild(option);
+      anyOptions = true;
+    }
+    if (candidates.length === 0) {
+      placeholder.textContent = group.label + " (none unlocked)";
+    }
+    select.addEventListener("change", function () {
+      if (select.value === "") {
+        return;
+      }
+      const item = findItem(Number(select.value));
+      if (item === null) {
+        return;
+      }
       const result = tryEquipItem(build, item);
       if (result.isSuccess) {
         savePlayerData();
@@ -919,21 +1081,21 @@ function renderSingleBuildPage(buildId) {
       } else {
         statusLine.textContent = result.reason;
         statusLine.classList.add("error-text");
+        select.value = "";
       }
     });
-    pickerRow.appendChild(addButton);
-    pickerList.appendChild(pickerRow);
+    pickerWrap.appendChild(select);
   }
-  if (poolItems.length === 0) {
+  form.appendChild(pickerWrap);
+  if (!anyOptions) {
     const hint = document.createElement("p");
     hint.className = "empty-hint";
     const campaign = buildCampaign(build);
     hint.textContent = campaign === null
       ? "Select a campaign above (or in My Campaigns) to unlock items for this build."
       : "Unlock more items in " + campaign.name + " first.";
-    pickerList.appendChild(hint);
+    form.appendChild(hint);
   }
-  form.appendChild(pickerList);
 
   // Wishlist: items the player wants for this build, tracked separately from
   // the equipped loadout. Any number of items can be added.
@@ -1099,6 +1261,7 @@ function openDetailOverlay(itemNumber) {
             }).join("") +
             "</ul>"
           : "") +
+        "<div class=\"add-to-build\"><strong>Add to build wishlist</strong> <select id=\"add-to-build-select\"></select> <button id=\"add-to-build-button\" class=\"primary-button\">Add</button></div>" +
         "<button class=close-overlay>Close</button>" +
       "</div>" +
     "</div>";
@@ -1114,6 +1277,32 @@ function openDetailOverlay(itemNumber) {
       closeDetailOverlay();
       currentPage = "source:" + encodeURIComponent(sourceLink.dataset.source);
       render();
+    });
+  }
+
+  // Add to build wishlist: choose one of the player's builds.
+  const buildSelect = content.querySelector("#add-to-build-select");
+  if (buildSelect !== null) {
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = builds.length > 0 ? "Choose build..." : "No builds yet";
+    buildSelect.appendChild(placeholder);
+    builds.forEach(function (candidate) {
+      const option = document.createElement("option");
+      option.value = candidate.id;
+      option.textContent = candidate.title;
+      buildSelect.appendChild(option);
+    });
+    content.querySelector("#add-to-build-button").addEventListener("click", function () {
+      const targetBuild = builds.find(function (candidate) { return candidate.id === buildSelect.value; });
+      if (targetBuild === undefined) {
+        return;
+      }
+      if (!targetBuild.wishlistItemNumbers.includes(item.number)) {
+        targetBuild.wishlistItemNumbers.push(item.number);
+        savePlayerData();
+      }
+      closeDetailOverlay();
     });
   }
   content.querySelector(".close-overlay").addEventListener("click", closeDetailOverlay);
