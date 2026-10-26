@@ -85,6 +85,27 @@ button { cursor: pointer; font-family: inherit; }
 .navlink:hover { color: var(--text); }
 
 .builds-heading h2 { margin: 0 0 10px; }
+.campaigns-heading { margin-top: 18px; }
+
+/* Secondary New campaign button: subtler than New build */
+.new-campaign-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+.new-campaign-button:hover { border-color: var(--accent); }
+.new-campaign-button .plus-mark { font-size: 1.1rem; line-height: 1; }
 
 /* Big, inviting New build button */
 .new-build-button {

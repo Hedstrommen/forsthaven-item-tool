@@ -69,7 +69,7 @@ function createCampaign(name) {
   return {
     id: crypto.randomUUID(),
     name: name,
-    unlockedBuildings: [],
+    unlockedBuildings: ["Initially Available"],
     unlockedItemNumbers: []
   };
 }
@@ -338,6 +338,29 @@ function renderSidebarBuilds() {
     hint.className = "sidebar-hint";
     hint.textContent = "No builds yet. Create one above.";
     container.appendChild(hint);
+  }
+
+  // Campaigns in the sidebar: one click opens that campaign for editing.
+  const campaignContainer = document.getElementById("sidebar-campaigns");
+  campaignContainer.innerHTML = "";
+  for (const campaign of campaigns) {
+    const button = document.createElement("button");
+    button.className = "sidebar-build" + (currentPage === "campaign:" + campaign.id ? " active" : "");
+    button.innerHTML =
+      "<strong>" + escapeHtml(campaign.name) + "</strong>" +
+      "<span>" + campaignPool(campaign).size + " unlocked items</span>";
+    button.addEventListener("click", function () {
+      activeCampaignId = campaign.id;
+      currentPage = "campaign:" + campaign.id;
+      render();
+    });
+    campaignContainer.appendChild(button);
+  }
+  if (campaigns.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "sidebar-hint";
+    hint.textContent = "No campaigns yet. Create one above.";
+    campaignContainer.appendChild(hint);
   }
 }
 
@@ -1094,10 +1117,11 @@ function renderSingleBuildPage(buildId) {
   // Per-slot dropdowns: each only lists campaign-unlocked items for that slot.
   const pool = buildPool(build);
   const slotGroups = [
+    { label: "Hand 1", slot: "one hand", includeTwoHanded: true },
+    { label: "Hand 2", slot: "one hand", includeTwoHanded: true },
     { label: "Head", slot: "head" },
     { label: "Body", slot: "body" },
     { label: "Legs", slot: "legs" },
-    { label: "Hand", slot: "one hand", includeTwoHanded: true },
     { label: "Items", slot: "small" },
     { label: "Potions", slot: null, potionsOnly: true }
   ];
@@ -1401,16 +1425,15 @@ function createSlotPicture(build, slotName, markerIndex) {
 
   let item = equippedInSlot[markerIndex];
   let mirrored = false;
-  // A two-handed item takes up both hand slots: the second hand box shows
-  // the same item, faded out.
-  if (slotName === "one hand" && markerIndex === 1 && item === undefined) {
-    const twoHanded = equippedInSlot.find(function (candidate) { return candidate.slot === "two hands"; })
-      || build.equippedItemNumbers.map(findItem).find(function (candidate) {
-        return candidate !== null && candidate.slot === "two hands";
-      });
-    if (twoHanded !== undefined && twoHanded !== null) {
+  // A two-handed item takes up both hand slots: it shows normally in the
+  // first hand box and faded out in the second.
+  if (slotName === "one hand" && item === undefined) {
+    const twoHanded = build.equippedItemNumbers
+      .map(findItem)
+      .find(function (candidate) { return candidate !== null && candidate.slot === "two hands"; });
+    if (twoHanded !== undefined) {
       item = twoHanded;
-      mirrored = true;
+      mirrored = markerIndex === 1;
     }
   }
 
@@ -1651,6 +1674,15 @@ document.querySelectorAll("[data-nav]").forEach(function (navButton) {
     currentPage = navButton.dataset.nav;
     render();
   });
+});
+
+document.getElementById("new-campaign-button").addEventListener("click", function () {
+  const campaign = createCampaign("Campaign " + (campaigns.length + 1));
+  campaigns.push(campaign);
+  activeCampaignId = campaign.id;
+  savePlayerData();
+  currentPage = "campaign:" + campaign.id;
+  render();
 });
 
 document.getElementById("new-build-button").addEventListener("click", function () {
