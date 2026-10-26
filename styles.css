@@ -357,6 +357,21 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
   text-decoration: underline;
   font-size: 0.9rem;
 }
+
+/* Future items not yet unlocked by the campaign: whited out until pressed */
+.spoiler-hidden button,
+button.spoiler-hidden {
+  color: transparent;
+  text-shadow: 0 0 7px rgba(232, 228, 216, 0.85);
+  user-select: none;
+}
+button.spoiler-hidden:hover {
+  text-shadow: 0 0 9px rgba(232, 228, 216, 1);
+  cursor: pointer;
+}
+li.spoiler-hidden {
+  background: rgba(29, 49, 69, 0.5);
+}
 .close-overlay {
   margin-top: 12px;
   background: var(--surface-bright);

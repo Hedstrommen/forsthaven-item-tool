@@ -227,6 +227,16 @@ function buildCampaign(build) {
   return null;
 }
 
+// Whether an item is visible in the player's active campaign. With no
+// campaigns at all, nothing is considered unlocked (everything is spoilered).
+function isItemUnlockedInActiveCampaign(item) {
+  const campaign = activeCampaign();
+  if (campaign === null) {
+    return false;
+  }
+  return campaignPool(campaign).has(item.number);
+}
+
 // ---------------------------------------------------------------------------
 // Build rules (mirror of ItemBuild.EquipItem in the C# domain)
 // ---------------------------------------------------------------------------
@@ -1441,15 +1451,20 @@ function openDetailOverlay(itemNumber) {
           ? "<h3>Full crafting chain</h3><p class=empty-hint>Everything you must gather to craft this from scratch:</p>" +
             "<ul class=recipe-list>" +
             chainItems.map(function (chainItem) {
-              return "<li><button class=\"component-link\" data-item=\"" + chainItem.number + "\"> #" + chainItem.number + " " + escapeHtml(chainItem.name) + "</button></li>";
+              const unlocked = isItemUnlockedInActiveCampaign(chainItem);
+              const spoilerClass = unlocked ? "" : " spoiler-hidden";
+              return "<li class=\"spoiler-item" + spoilerClass + "\"><button class=\"component-link" + spoilerClass + "\" data-item=\"" + chainItem.number + "\"" + (unlocked ? "" : " data-spoiler=\"1\"") + ">" + (unlocked ? "#" + chainItem.number + " " + escapeHtml(chainItem.name) : "#" + chainItem.number + " ????") + "</button></li>";
             }).join("") +
             "</ul>"
           : "") +
         (parentItems.length > 0
           ? "<h3>Used to build</h3>" +
+            "<p class=empty-hint>Items you have not unlocked in your campaign are hidden - press a whited-out entry to reveal it.</p>" +
             "<ul class=recipe-list>" +
             parentItems.map(function (parentItem) {
-              return "<li><button class=\"component-link\" data-item=\"" + parentItem.number + "\">#" + parentItem.number + " " + escapeHtml(parentItem.name) + "</button></li>";
+              const unlocked = isItemUnlockedInActiveCampaign(parentItem);
+              const spoilerClass = unlocked ? "" : " spoiler-hidden";
+              return "<li class=\"spoiler-item" + spoilerClass + "\"><button class=\"component-link" + spoilerClass + "\" data-item=\"" + parentItem.number + "\"" + (unlocked ? "" : " data-spoiler=\"1\"") + ">" + (unlocked ? "#" + parentItem.number + " " + escapeHtml(parentItem.name) : "#" + parentItem.number + " ????") + "</button></li>";
             }).join("") +
             "</ul>"
           : "") +
@@ -1460,6 +1475,15 @@ function openDetailOverlay(itemNumber) {
 
   content.querySelectorAll(".component-link[data-item]").forEach(function (linkButton) {
     linkButton.addEventListener("click", function () {
+      if (linkButton.dataset.spoiler === "1") {
+        // First press reveals the hidden future item; pressing again opens it.
+        delete linkButton.dataset.spoiler;
+        linkButton.classList.remove("spoiler-hidden");
+        linkButton.closest(".spoiler-item").classList.remove("spoiler-hidden");
+        const revealedItem = findItem(Number(linkButton.dataset.item));
+        linkButton.textContent = "#" + revealedItem.number + " " + revealedItem.name;
+        return;
+      }
       openDetailOverlay(Number(linkButton.dataset.item));
     });
   });
