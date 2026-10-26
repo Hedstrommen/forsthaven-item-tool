@@ -575,4 +575,24 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
   .app-shell { flex-direction: column; }
   #sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
   .side-nav { flex-direction: row; flex-wrap: wrap; }
+
+  /* Phones: ~20% smaller item cards, two per row */
+  main { padding: 14px 12px; }
+  .item-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+  }
+  .item-card { padding: 4px; border-radius: 8px; }
+
+  /* Taller stacked areas stay usable */
+  .character-stage { width: 100%; }
+  .build-layout { gap: 14px; }
+  .slot-picture { min-height: 56px; }
+  .available-grid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); }
+
+  /* Respect the iOS home indicator and make tap targets comfortable */
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  .navlink, .controls select, .controls input, button { min-height: 44px; }
+  .controls { gap: 6px; }
+  .controls input { min-width: 120px; }
 }
