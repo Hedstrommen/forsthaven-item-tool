@@ -1255,16 +1255,37 @@ function renderSingleBuildPage(buildId) {
     renderAvailableItems(build, availableFilterInput.value, availableGrid);
   });
 
+  const deleteWrap = document.createElement("div");
+  deleteWrap.className = "delete-wrap";
   const deleteButton = document.createElement("button");
   deleteButton.textContent = "Delete build";
-  deleteButton.className = "danger";
+  deleteButton.className = "danger small-danger";
   deleteButton.addEventListener("click", function () {
+    deleteWrap.classList.add("confirming");
+  });
+  deleteWrap.appendChild(deleteButton);
+  const confirmText = document.createElement("span");
+  confirmText.className = "confirm-text";
+  confirmText.textContent = "Delete this build and everything in it? This cannot be undone.";
+  const confirmYes = document.createElement("button");
+  confirmYes.textContent = "Yes, delete";
+  confirmYes.className = "danger small-danger";
+  confirmYes.addEventListener("click", function () {
     builds = builds.filter(function (candidate) { return candidate.id !== build.id; });
     savePlayerData();
     currentPage = "browse";
     render();
   });
-  form.appendChild(deleteButton);
+  const confirmNo = document.createElement("button");
+  confirmNo.textContent = "Cancel";
+  confirmNo.className = "small-danger cancel";
+  confirmNo.addEventListener("click", function () {
+    deleteWrap.classList.remove("confirming");
+  });
+  deleteWrap.appendChild(confirmText);
+  deleteWrap.appendChild(confirmYes);
+  deleteWrap.appendChild(confirmNo);
+  form.appendChild(deleteWrap);
 
   layout.appendChild(form);
   appElement.appendChild(layout);
