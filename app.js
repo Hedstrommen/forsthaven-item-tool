@@ -1445,7 +1445,6 @@ function openDetailOverlay(itemNumber) {
         "<h2>#" + item.number + " " + escapeHtml(item.name) + "</h2>" +
         "<p><strong>Slot:</strong> " + escapeHtml(item.slot) +
         " &nbsp; <strong>Source:</strong> <button class=\"component-link source-link\" data-source=\"" + escapeHtml(item.source) + "\">" + escapeHtml(item.source.replace(/\n/g, " / ")) + "</button></p>" +
-        "<p>" + window.fhIconText(item.description) + "</p>" +
         recipeHtml +
         (chainItems.length > 0
           ? "<h3>Full crafting chain</h3><p class=empty-hint>Everything you must gather to craft this from scratch:</p>" +
