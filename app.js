@@ -949,10 +949,10 @@ function renderSingleBuildPage(buildId) {
     { label: "Legs", slot: "legs", markerIndex: 0 },
     { label: "Hand", slot: "one hand", markerIndex: 0 },
     { label: "Hand", slot: "one hand", markerIndex: 1 },
-    { label: "Two hands", slot: "two hands", markerIndex: 0 },
     { label: "Item", slot: "small", markerIndex: 0 },
     { label: "Item", slot: "small", markerIndex: 1 },
-    { label: "Item", slot: "small", markerIndex: 2 }
+    { label: "Item", slot: "small", markerIndex: 2 },
+    { label: "Item", slot: "small", markerIndex: 3 }
   ];
   for (const group of panelGroups) {
     const slotBox = document.createElement("div");
@@ -1091,8 +1091,7 @@ function renderSingleBuildPage(buildId) {
     { label: "Head", slot: "head" },
     { label: "Body", slot: "body" },
     { label: "Legs", slot: "legs" },
-    { label: "One hand", slot: "one hand" },
-    { label: "Two hands", slot: "two hands" },
+    { label: "Hand", slot: "one hand", includeTwoHanded: true },
     { label: "Items", slot: "small" },
     { label: "Potions", slot: null, potionsOnly: true }
   ];
@@ -1112,6 +1111,9 @@ function renderSingleBuildPage(buildId) {
       }
       if (group.potionsOnly === true) {
         return isPotionItem(item);
+      }
+      if (group.includeTwoHanded === true && item.slot === "two hands") {
+        return true;
       }
       return item.slot === group.slot;
     });
@@ -1370,14 +1372,31 @@ function createSlotPicture(build, slotName, markerIndex) {
     .map(findItem)
     .filter(function (item) { return item !== null && item.slot === slotName; });
 
+  let item = equippedInSlot[markerIndex];
+  let mirrored = false;
+  // A two-handed item takes up both hand slots: the second hand box shows
+  // the same item, faded out.
+  if (slotName === "one hand" && markerIndex === 1 && item === undefined) {
+    const twoHanded = equippedInSlot.find(function (candidate) { return candidate.slot === "two hands"; })
+      || build.equippedItemNumbers.map(findItem).find(function (candidate) {
+        return candidate !== null && candidate.slot === "two hands";
+      });
+    if (twoHanded !== undefined && twoHanded !== null) {
+      item = twoHanded;
+      mirrored = true;
+    }
+  }
+
   const box = document.createElement("div");
-  const item = equippedInSlot[markerIndex];
   box.className = "slot-picture";
   box.dataset.slot = slotName;
   if (item === undefined) {
     box.classList.add("empty");
     box.textContent = "-";
   } else {
+    if (mirrored) {
+      box.classList.add("mirrored");
+    }
     box.classList.add("filled");
     if (item.image !== "") {
       const image = document.createElement("img");
@@ -1409,7 +1428,12 @@ function createSlotPicture(build, slotName, markerIndex) {
     if (droppedItem === null) {
       return;
     }
+    // A two-handed item fits either hand box (it occupies both).
     if (droppedItem.slot !== slotName) {
+      if (droppedItem.slot === "two hands" && slotName === "one hand") {
+        equipIntoBuild(build, droppedItem);
+        return;
+      }
       showBuildStatus(build, "A " + droppedItem.slot + " item does not fit the " + slotName + " slot.");
       return;
     }

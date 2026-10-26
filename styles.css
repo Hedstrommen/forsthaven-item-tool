@@ -471,6 +471,7 @@ li.spoiler-hidden {
   object-position: top;
 }
 .slot-picture.filled { border-style: solid; border-color: var(--accent-warm); }
+.slot-picture.mirrored { opacity: 0.45; border-style: dashed; }
 .slot-picture.drop-hover { border-color: var(--accent); box-shadow: 0 0 12px rgba(86, 180, 200, 0.4); }
 
 /* Available items on the build page */
