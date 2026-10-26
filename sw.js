@@ -8,7 +8,8 @@ const CORE_FILES = [
   "./game-data.js",
   "./icons.js",
   "./manifest.webmanifest",
-  "./data/catalog.json"
+  "./data/catalog.json",
+  "./data/gloomhaven-catalog.json"
 ];
 
 self.addEventListener("install", function (event) {

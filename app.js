@@ -6,7 +6,9 @@
 // Application state
 // ---------------------------------------------------------------------------
 
-let catalog = [];                 // every item in the game
+let catalog = [];                 // every item in the active game
+let catalogsByGame = {};          // loaded catalogs per game (frosthaven/gloomhaven)
+let activeGame = "frosthaven";    // frosthaven | gloomhaven
 let unlockedItemNumbers = new Set(); // items unlocked outside any campaign
 let campaigns = [];                // the player's campaigns
 let builds = [];                   // the player's saved builds
@@ -22,6 +24,7 @@ const STORAGE_KEY = "frosthaven-item-tool-v2";
 
 function savePlayerData() {
   const data = {
+    activeGame: activeGame,
     unlockedItemNumbers: Array.from(unlockedItemNumbers),
     campaigns: campaigns,
     builds: builds,
@@ -53,6 +56,7 @@ function loadPlayerData() {
   }
   try {
     const data = JSON.parse(raw);
+    activeGame = data.activeGame === "gloomhaven" ? "gloomhaven" : "frosthaven";
     unlockedItemNumbers = new Set(data.unlockedItemNumbers || []);
     campaigns = (data.campaigns || []).map(normalizeCampaign);
     builds = (data.builds || []).map(normalizeBuild);
@@ -69,6 +73,7 @@ function createCampaign(name) {
   return {
     id: crypto.randomUUID(),
     name: name,
+    game: activeGame,
     unlockedBuildings: ["Initially Available"],
     unlockedItemNumbers: []
   };
@@ -78,6 +83,7 @@ function normalizeCampaign(saved) {
   return {
     id: saved.id,
     name: saved.name || "Campaign",
+    game: saved.game === "gloomhaven" ? "gloomhaven" : "frosthaven",
     unlockedBuildings: saved.unlockedBuildings || [],
     unlockedItemNumbers: saved.unlockedItemNumbers || []
   };
@@ -89,10 +95,22 @@ function normalizeBuild(saved) {
     title: saved.title || "Build",
     characterIndex: saved.characterIndex || 0,
     notes: saved.notes || "",
+    game: saved.game === "gloomhaven" ? "gloomhaven" : "frosthaven",
     campaignId: saved.campaignId || null,
     equippedItemNumbers: saved.equippedItemNumbers || [],
     wishlistItemNumbers: saved.wishlistItemNumbers || []
   };
+}
+
+// The game a build belongs to: its own game, or the game of its campaign.
+function buildGame(build) {
+  if (build.campaignId !== null) {
+    const campaign = campaigns.find(function (candidate) { return candidate.id === build.campaignId; });
+    if (campaign !== undefined) {
+      return campaign.game || "frosthaven";
+    }
+  }
+  return build.game || activeGame;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,19 +195,24 @@ function findItemsBuiltFrom(item) {
 }
 
 function findBuildingUnlock(buildingName) {
-  return BUILDING_UNLOCKS.find(function (entry) { return entry.building === buildingName; }) || null;
+  return buildingUnlocksForGame(activeGame).find(function (entry) { return entry.building === buildingName; }) || null;
+}
+
+function findBuildingUnlockForGame(game, buildingName) {
+  return buildingUnlocksForGame(game).find(function (entry) { return entry.building === buildingName; }) || null;
 }
 
 // The items a campaign currently has available for builds. The Initially
-// Available items are in every campaign's pool by default.
+// Available items are in every Frosthaven campaign's pool by default.
 function campaignPool(campaign) {
+  const game = campaign.game || "frosthaven";
   const pool = new Set();
-  const initial = findBuildingUnlock("Initially Available");
+  const initial = findBuildingUnlockForGame(game, "Initially Available");
   if (initial !== null) {
     initial.itemNumbers.forEach(function (number) { pool.add(number); });
   }
   for (const buildingName of campaign.unlockedBuildings) {
-    const entry = findBuildingUnlock(buildingName);
+    const entry = findBuildingUnlockForGame(game, buildingName);
     if (entry !== null) {
       entry.itemNumbers.forEach(function (number) { pool.add(number); });
     }
@@ -223,6 +246,56 @@ function buildPool(build) {
     return campaignPool(campaign);
   }
   return unlockedItemNumbers;
+}
+
+// The image folder for an item: Frosthaven and Gloomhaven cards live in
+// separate asset folders.
+function itemImageBase(item) {
+  return item.imageBase || "assets/items/";
+}
+
+// Switch the whole tool over to the other game: reloads that game's catalog
+// and re-renders everything from its own data.
+function setActiveGame(game) {
+  if (game !== "frosthaven" && game !== "gloomhaven") {
+    return;
+  }
+  activeGame = game;
+  browseSourceFilter = "";
+  catalog = catalogsByGame[game] || [];
+  // Leave pages that belong to the other game behind.
+  if (currentPage.startsWith("campaign:")) {
+    const campaign = campaigns.find(function (candidate) { return candidate.id === currentPage.slice("campaign:".length); });
+    if (campaign === undefined || (campaign.game || "frosthaven") !== game) {
+      currentPage = "campaigns";
+    }
+  } else if (currentPage.startsWith("build:")) {
+    const build = builds.find(function (candidate) { return candidate.id === currentPage.slice("build:".length); });
+    if (build === undefined || buildGame(build) !== game) {
+      currentPage = "browse";
+    }
+  }
+  savePlayerData();
+  renderGameToggle();
+  render();
+}
+
+function renderGameToggle() {
+  const container = document.getElementById("game-toggle");
+  if (container === null) {
+    return;
+  }
+  container.innerHTML = "";
+  const frosthavenButton = document.createElement("button");
+  frosthavenButton.textContent = "Frosthaven";
+  frosthavenButton.className = "game-toggle-button" + (activeGame === "frosthaven" ? " active" : "");
+  frosthavenButton.addEventListener("click", function () { setActiveGame("frosthaven"); });
+  const gloomhavenButton = document.createElement("button");
+  gloomhavenButton.textContent = "Gloomhaven";
+  gloomhavenButton.className = "game-toggle-button" + (activeGame === "gloomhaven" ? " active" : "");
+  gloomhavenButton.addEventListener("click", function () { setActiveGame("gloomhaven"); });
+  container.appendChild(frosthavenButton);
+  container.appendChild(gloomhavenButton);
 }
 
 function buildCampaign(build) {
@@ -320,7 +393,8 @@ function render() {
 function renderSidebarBuilds() {
   const container = document.getElementById("sidebar-builds");
   container.innerHTML = "";
-  for (const build of builds) {
+  const gameBuilds = builds.filter(function (build) { return buildGame(build) === activeGame; });
+  for (const build of gameBuilds) {
     const character = CHARACTERS[build.characterIndex] || CHARACTERS[0];
     const button = document.createElement("button");
     button.className = "sidebar-build" + (currentPage === "build:" + build.id ? " active" : "");
@@ -333,7 +407,7 @@ function renderSidebarBuilds() {
     });
     container.appendChild(button);
   }
-  if (builds.length === 0) {
+  if (gameBuilds.length === 0) {
     const hint = document.createElement("p");
     hint.className = "sidebar-hint";
     hint.textContent = "No builds yet. Create one above.";
@@ -343,7 +417,8 @@ function renderSidebarBuilds() {
   // Campaigns in the sidebar: one click opens that campaign for editing.
   const campaignContainer = document.getElementById("sidebar-campaigns");
   campaignContainer.innerHTML = "";
-  for (const campaign of campaigns) {
+  const gameCampaigns = campaigns.filter(function (campaign) { return (campaign.game || "frosthaven") === activeGame; });
+  for (const campaign of gameCampaigns) {
     const button = document.createElement("button");
     button.className = "sidebar-build" + (currentPage === "campaign:" + campaign.id ? " active" : "");
     button.innerHTML =
@@ -356,7 +431,7 @@ function renderSidebarBuilds() {
     });
     campaignContainer.appendChild(button);
   }
-  if (campaigns.length === 0) {
+  if (gameCampaigns.length === 0) {
     const hint = document.createElement("p");
     hint.className = "sidebar-hint";
     hint.textContent = "No campaigns yet. Create one above.";
@@ -414,6 +489,12 @@ const SOURCE_FILTERS = [
 ];
 
 function sourceCategory(source) {
+  if (/^Prosperity \d/.test(source.trim())) { return source.trim().match(/^Prosperity \d/)[0]; }
+  if (/^(City Event|Rift Event)/.test(source)) { return "City events"; }
+  if (/^Road Event/.test(source)) { return "Road events"; }
+  if (source.indexOf("Random Item") !== -1) { return "Random items"; }
+  if (source.indexOf("Solo Scenario") !== -1 || source.indexOf("Solo ") !== -1) { return "Solo scenario rewards"; }
+  if (/^Scenario/.test(source)) { return "Scenario rewards"; }
   if (source.indexOf("Alchemy") !== -1) { return "Alchemy"; }
   if (source.indexOf("Treasure") !== -1) { return "Treasure chests"; }
   if (source.indexOf("Solo Scenario") !== -1) { return "Solo scenario rewards"; }
@@ -428,7 +509,7 @@ function sourceCategory(source) {
 // Building sources are matched exactly so e.g. "Craftsman 3\nTreasure 50"
 // only shows up under Treasure chests, not under Craftsman 3.
 function isExactBuildingSource(source) {
-  return /^(Craftsman|Jeweler|Trading Post|Initially Available)\d?/.test(source.trim())
+  return /^(Craftsman|Jeweler|Trading Post|Initially Available|Prosperity \d)/.test(source.trim())
     && source.indexOf("\n") === -1;
 }
 
@@ -446,16 +527,40 @@ function sourceMatchesFilter(item, sourceFilter) {
   if (category === sourceFilter) {
     return true;
   }
-  // Building sources may appear as one line of a combined source.
-  if (/^(Craftsman|Jeweler|Trading Post)/.test(sourceFilter)) {
+  // Building and prosperity sources may appear as one line of a combined source.
+  if (/^(Craftsman|Jeweler|Trading Post|Prosperity)/.test(sourceFilter)) {
     return false;
   }
   return false;
 }
 
 function sourceFilterOptions() {
+  if (activeGame === "gloomhaven") {
+    return GLOOMHAVEN_SOURCE_FILTERS;
+  }
   return SOURCE_FILTERS;
 }
+
+// Source filters for the Gloomhaven item list: prosperity levels instead of
+// buildings, plus the Gloomhaven reward groups.
+const GLOOMHAVEN_SOURCE_FILTERS = [
+  { value: "", label: "All items" },
+  { value: "Prosperity 1", label: "Prosperity 1" },
+  { value: "Prosperity 2", label: "Prosperity 2" },
+  { value: "Prosperity 3", label: "Prosperity 3" },
+  { value: "Prosperity 4", label: "Prosperity 4" },
+  { value: "Prosperity 5", label: "Prosperity 5" },
+  { value: "Prosperity 6", label: "Prosperity 6" },
+  { value: "Prosperity 7", label: "Prosperity 7" },
+  { value: "Prosperity 8", label: "Prosperity 8" },
+  { value: "Prosperity 9", label: "Prosperity 9" },
+  { value: "Random items", label: "Random items" },
+  { value: "Scenario rewards", label: "Scenario rewards" },
+  { value: "Solo scenario rewards", label: "Solo scenario rewards" },
+  { value: "City events", label: "City events" },
+  { value: "Road events", label: "Road events" },
+  { value: "other", label: "Other" }
+];
 
 function allSources() {
   const sources = new Set();
@@ -501,7 +606,7 @@ function renderBrowsePage() {
   }
   if (availabilityFilter === "purchasable") {
     items = items.filter(function (item) {
-      return /^(Craftsman|Trading Post|Jeweler|Initially)/.test(item.source);
+      return /^(Craftsman|Trading Post|Jeweler|Initially|Prosperity)/.test(item.source);
     });
   }
 
@@ -525,7 +630,7 @@ function renderBrowsePage() {
     "</select>" +
     '<select id="campaign-filter">' +
       '<option value="">All campaigns</option>' +
-      campaigns.map(function (campaign) { return '<option value="' + campaign.id + '"' + (campaignFilter === campaign.id ? " selected" : "") + ">" + escapeHtml(campaign.name) + "</option>"; }).join("") +
+      campaigns.filter(function (campaign) { return (campaign.game || "frosthaven") === activeGame; }).map(function (campaign) { return '<option value="' + campaign.id + '"' + (campaignFilter === campaign.id ? " selected" : "") + ">" + escapeHtml(campaign.name) + "</option>"; }).join("") +
     "</select>" +
     '<select id="availability-filter">' +
       '<option value="all"' + (availabilityFilter === "all" ? " selected" : "") + '>Show: all items</option>' +
@@ -545,7 +650,11 @@ function renderBrowsePage() {
 
   const searchInput = document.getElementById("search-input");
   searchInput.value = searchText;
-  searchInput.addEventListener("input", render);
+  // Typing in the search box only refreshes the grid below, so the input
+  // keeps focus and the user can keep typing (issue #19).
+  searchInput.addEventListener("input", function () {
+    refreshBrowseGrid(grid, slotFilter, sourceFilter, campaignFilter, availabilityFilter, sortCriterion);
+  });
   document.getElementById("slot-filter").addEventListener("change", render);
   document.getElementById("source-filter").addEventListener("change", function () {
     browseSourceFilter = document.getElementById("source-filter").value;
@@ -588,11 +697,56 @@ function renderBrowsePage() {
     grid.appendChild(createItemCard(item));
   }
   appElement.appendChild(grid);
-  if (items.length === 0) {
-    const hint = document.createElement("p");
-    hint.className = "empty-hint";
-    hint.textContent = "No items match your search.";
-    appElement.appendChild(hint);
+  const emptyHint = document.createElement("p");
+  emptyHint.className = "empty-hint";
+  emptyHint.textContent = "No items match your search.";
+  appElement.appendChild(emptyHint);
+}
+
+// Re-runs the current browse query and repaints only the result grid (and the
+// hint below it). The filter controls stay untouched, so typing in the search
+// box does not steal focus away from it.
+function refreshBrowseGrid(grid, slotFilter, sourceFilter, campaignFilter, availabilityFilter, sortCriterion) {
+  const onlyPotions = renderBrowsePotionsOnly;
+
+  let pool = null;
+  if (campaignFilter !== "") {
+    const campaign = campaigns.find(function (candidate) { return candidate.id === campaignFilter; });
+    pool = campaign !== undefined ? campaignPool(campaign) : new Set();
+  }
+  if (availabilityFilter === "unlocked") {
+    const campaign = campaigns.find(function (candidate) { return candidate.id === campaignFilter; });
+    if (campaign !== undefined) {
+      pool = campaignPool(campaign);
+    } else if (activeCampaign() !== null) {
+      pool = campaignPool(activeCampaign());
+    }
+  }
+
+  let items = queryItems(
+    document.getElementById("search-input").value,
+    slotFilter === "" ? null : slotFilter,
+    onlyPotions,
+    pool,
+    sortCriterion,
+    sourceFilter === "" ? null : sourceFilter
+  );
+  if (availabilityFilter === "craftable") {
+    items = items.filter(function (item) { return (item.resources || []).length > 0 || (item.components || []).length > 0; });
+  }
+  if (availabilityFilter === "purchasable") {
+    items = items.filter(function (item) {
+      return /^(Craftsman|Trading Post|Jeweler|Initially|Prosperity)/.test(item.source);
+    });
+  }
+
+  grid.innerHTML = "";
+  for (const item of items) {
+    grid.appendChild(createItemCard(item));
+  }
+  const hint = grid.nextElementSibling;
+  if (hint !== null && hint.classList.contains("empty-hint")) {
+    hint.style.display = items.length === 0 ? "" : "none";
   }
 }
 
@@ -610,7 +764,7 @@ function createItemCard(item) {
   if (item.image !== "") {
     const image = document.createElement("img");
     image.className = "item-picture";
-    image.src = "assets/items/" + item.image;
+    image.src = itemImageBase(item) + item.image;
     image.alt = "#" + item.number + " " + item.name;
     image.loading = "lazy";
     card.appendChild(image);
@@ -689,7 +843,8 @@ function renderCampaignsPage() {
 
   const list = document.createElement("div");
   list.className = "campaign-list";
-  for (const campaign of campaigns) {
+  const gameCampaigns = campaigns.filter(function (campaign) { return (campaign.game || "frosthaven") === activeGame; });
+  for (const campaign of gameCampaigns) {
     const row = document.createElement("div");
     row.className = "campaign-row" + (campaign.id === activeCampaignId ? " active" : "");
     row.innerHTML =
@@ -721,7 +876,8 @@ function renderCampaignsPage() {
     deleteButton.addEventListener("click", function () {
       campaigns = campaigns.filter(function (candidate) { return candidate.id !== campaign.id; });
       if (activeCampaignId === campaign.id) {
-        activeCampaignId = campaigns.length > 0 ? campaigns[0].id : null;
+        const remaining = campaigns.filter(function (candidate) { return (candidate.game || "frosthaven") === activeGame; });
+        activeCampaignId = remaining.length > 0 ? remaining[0].id : null;
       }
       savePlayerData();
       render();
@@ -732,7 +888,7 @@ function renderCampaignsPage() {
     row.appendChild(buttons);
     list.appendChild(row);
   }
-  if (campaigns.length === 0) {
+  if (gameCampaigns.length === 0) {
     const hint = document.createElement("p");
     hint.className = "empty-hint";
     hint.textContent = "No campaigns yet. Create one to track your unlocked items.";
@@ -750,6 +906,11 @@ function renderSingleCampaignPage(campaignId) {
   if (campaign === undefined) {
     currentPage = "campaigns";
     render();
+    return;
+  }
+  if ((campaign.game || "frosthaven") !== activeGame) {
+    setActiveGame(campaign.game || "frosthaven");
+    currentPage = "campaign:" + campaign.id;
     return;
   }
   activeCampaignId = campaign.id;
@@ -824,12 +985,12 @@ function renderSingleCampaignPage(campaignId) {
   }
 
   const buildingsTitle = document.createElement("h2");
-  buildingsTitle.textContent = "Buildings";
+  buildingsTitle.textContent = campaign.game === "gloomhaven" ? "Prosperity levels" : "Buildings";
   appElement.appendChild(buildingsTitle);
 
   const buildingsList = document.createElement("div");
   buildingsList.className = "building-list";
-  for (const entry of BUILDING_UNLOCKS) {
+  for (const entry of buildingUnlocksForGame(campaign.game)) {
     const isUnlocked = campaign.unlockedBuildings.includes(entry.building);
     const row = document.createElement("label");
     row.className = "building-row" + (isUnlocked ? " unlocked" : "");
@@ -908,6 +1069,118 @@ function renderSingleCampaignPage(campaignId) {
     }
     appElement.appendChild(grid);
   }
+
+  // Manual add: search a specific card and add it to the campaign without
+  // unlocking whole building groups (issue #17).
+  const manualTitle = document.createElement("h2");
+  manualTitle.textContent = "Manually add items";
+  appElement.appendChild(manualTitle);
+
+  const manualIntro = document.createElement("p");
+  manualIntro.className = "empty-hint";
+  manualIntro.textContent = "Search a specific card to add it to this campaign without unlocking whole groups.";
+  appElement.appendChild(manualIntro);
+
+  const manualSearchInput = document.createElement("input");
+  manualSearchInput.type = "search";
+  manualSearchInput.placeholder = "Search items to add to this campaign...";
+  appElement.appendChild(manualSearchInput);
+
+  const manualResults = document.createElement("div");
+  manualResults.className = "wishlist-results";
+  appElement.appendChild(manualResults);
+  manualSearchInput.addEventListener("input", function () {
+    renderManualAddResults(campaign, pool, manualSearchInput.value, manualResults);
+  });
+
+  const manualListTitle = document.createElement("h3");
+  manualListTitle.textContent = "Manually added items";
+  appElement.appendChild(manualListTitle);
+
+  const manualList = document.createElement("div");
+  appElement.appendChild(manualList);
+  renderManualAddedItems(campaign, pool, manualList);
+}
+
+// Search results for the campaign page manual add: any catalog item can be
+// added; items already in the pool are marked as such.
+function renderManualAddResults(campaign, pool, searchText, container) {
+  container.innerHTML = "";
+  const needle = searchText.trim().toLowerCase();
+  if (needle === "") {
+    return;
+  }
+  const results = catalog.filter(function (item) {
+    return item.name.toLowerCase().includes(needle) || String(item.number).includes(needle);
+  }).slice(0, 12);
+  for (const item of results) {
+    const row = document.createElement("div");
+    row.className = "build-row";
+    row.innerHTML = "<div>#" + item.number + " " + escapeHtml(item.name) +
+      '<div class="item-slot">' + escapeHtml(item.slot) + "</div></div>";
+    const addButton = document.createElement("button");
+    if (pool.has(item.number)) {
+      addButton.textContent = "Already in campaign";
+      addButton.disabled = true;
+    } else {
+      addButton.textContent = "Add";
+      addButton.addEventListener("click", function () {
+        if (!campaign.unlockedItemNumbers.includes(item.number)) {
+          campaign.unlockedItemNumbers.push(item.number);
+          savePlayerData();
+          render();
+        }
+      });
+    }
+    row.appendChild(addButton);
+    container.appendChild(row);
+  }
+  if (results.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = "No matching items.";
+    container.appendChild(hint);
+  }
+}
+
+// The items this campaign has unlocked manually (not via a building group),
+// each with a button to remove it again.
+function renderManualAddedItems(campaign, pool, container) {
+  container.innerHTML = "";
+  const buildingNumbers = new Set();
+  buildingUnlocksForGame(campaign.game).forEach(function (entry) {
+    entry.itemNumbers.forEach(function (number) { buildingNumbers.add(number); });
+  });
+  const manualNumbers = campaign.unlockedItemNumbers.filter(function (number) {
+    return !buildingNumbers.has(number);
+  });
+  for (const number of manualNumbers) {
+    const item = findItem(number);
+    if (item === null) {
+      continue;
+    }
+    const row = document.createElement("div");
+    row.className = "build-row";
+    row.innerHTML = "<div>#" + item.number + " " + escapeHtml(item.name) +
+      '<div class="item-slot">' + escapeHtml(item.slot) + "</div></div>";
+    const removeButton = document.createElement("button");
+    removeButton.textContent = "Remove";
+    removeButton.addEventListener("click", function () {
+      campaign.unlockedItemNumbers = campaign.unlockedItemNumbers.filter(function (candidate) {
+        return candidate !== number;
+      });
+      savePlayerData();
+      render();
+    });
+    row.appendChild(removeButton);
+    container.appendChild(row);
+  }
+  if (manualNumbers.length === 0) {
+    const hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = "Nothing added manually yet. Use the search above to add a specific card.";
+    container.appendChild(hint);
+  }
 }
 
 function openBuildingGroupOverlay(buildingName, itemNumbers) {
@@ -940,6 +1213,10 @@ function renderSingleBuildPage(buildId) {
   if (build === undefined) {
     currentPage = "browse";
     render();
+    return;
+  }
+  if (buildGame(build) !== activeGame) {
+    setActiveGame(buildGame(build));
     return;
   }
 
@@ -1016,7 +1293,7 @@ function renderSingleBuildPage(buildId) {
   noCampaignOption.value = "";
   noCampaignOption.textContent = "No campaign";
   campaignPicker.appendChild(noCampaignOption);
-  campaigns.forEach(function (candidate) {
+  campaigns.filter(function (candidate) { return (candidate.game || "frosthaven") === activeGame; }).forEach(function (candidate) {
     const option = document.createElement("option");
     option.value = candidate.id;
     option.textContent = candidate.name;
@@ -1208,7 +1485,9 @@ function renderSingleBuildPage(buildId) {
   wishlistList.addEventListener("drop", function (event) {
     event.preventDefault();
     wishlistList.classList.remove("drop-hover");
-    const droppedNumber = Number(event.dataTransfer.getData("text/plain"));
+    const droppedNumber = dragPayload !== null && dragPayload.kind === "equipped"
+      ? dragPayload.number
+      : Number(event.dataTransfer.getData("text/plain"));
     const droppedItem = findItem(droppedNumber);
     if (droppedItem === null) {
       return;
@@ -1293,7 +1572,7 @@ function renderSingleBuildPage(buildId) {
   confirmText.textContent = "Delete this build and everything in it? This cannot be undone.";
   const confirmYes = document.createElement("button");
   confirmYes.textContent = "Yes, delete";
-  confirmYes.className = "danger small-danger";
+  confirmYes.className = "danger small-danger confirm-yes";
   confirmYes.addEventListener("click", function () {
     builds = builds.filter(function (candidate) { return candidate.id !== build.id; });
     savePlayerData();
@@ -1357,7 +1636,7 @@ function renderAvailableItems(build, filterText, container) {
     picture.title = "#" + item.number + " " + item.name + " (" + item.slot + ") - drag to a slot or the wishlist";
     if (item.image !== "") {
       const image = document.createElement("img");
-      image.src = "assets/items/" + item.image;
+      image.src = itemImageBase(item) + item.image;
       image.alt = item.name;
       image.draggable = false;
       picture.appendChild(image);
@@ -1365,8 +1644,12 @@ function renderAvailableItems(build, filterText, container) {
       picture.textContent = "#" + item.number;
     }
     picture.addEventListener("dragstart", function (event) {
+      dragPayload = { kind: "available", number: item.number, buildId: null };
       event.dataTransfer.setData("text/plain", String(item.number));
       event.dataTransfer.effectAllowed = "copy";
+    });
+    picture.addEventListener("dragend", function () {
+      dragPayload = null;
     });
     picture.addEventListener("click", function () {
       openDetailOverlay(item.number);
@@ -1415,9 +1698,58 @@ function renderWishlistResults(build, searchText, container) {
   }
 }
 
+// Document-level drag handling: dropping an equipped slot item anywhere
+// outside a valid drop zone (slots, wishlist) unequips it (issue #22).
+document.addEventListener("drop", function (event) {
+  if (dragPayload === null || dragPayload.kind !== "equipped") {
+    return;
+  }
+  if (event.defaultPrevented) {
+    return; // a valid drop zone already handled it
+  }
+  const inZone = event.target !== null && event.target.closest !== undefined
+    && (event.target.closest(".slot-picture") !== null
+      || event.target.closest(".wishlist-list") !== null
+      || event.target.closest(".available-grid") !== null);
+  const build = builds.find(function (candidate) { return candidate.id === dragPayload.buildId; });
+  if (build === undefined) {
+    dragPayload = null;
+    return;
+  }
+  if (!inZone) {
+    unequipFromBuild(build, dragPayload.number);
+  }
+  dragPayload = null;
+});
+
+document.addEventListener("dragover", function (event) {
+  if (dragPayload === null || dragPayload.kind !== "equipped") {
+    return;
+  }
+  const inZone = event.target !== null && event.target.closest !== undefined
+    && (event.target.closest(".slot-picture") !== null
+      || event.target.closest(".wishlist-list") !== null
+      || event.target.closest(".available-grid") !== null);
+  if (!inZone) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+});
+
 // A small picture box under a slot header. Filled boxes show the equipped
 // item's card picture; clicking it opens the item detail. Dragging an item
-// picture from Available items onto a box equips it.
+// picture from Available items onto a box equips it. Dragging a filled box
+// away from the slots unequips the item (issue #22).
+let dragPayload = null; // { kind: "available"|"equipped", number, buildId }
+
+function unequipFromBuild(build, itemNumber) {
+  build.equippedItemNumbers = build.equippedItemNumbers.filter(function (number) {
+    return number !== itemNumber;
+  });
+  savePlayerData();
+  render();
+}
+
 function createSlotPicture(build, slotName, markerIndex) {
   const equippedInSlot = build.equippedItemNumbers
     .map(findItem)
@@ -1450,16 +1782,26 @@ function createSlotPicture(build, slotName, markerIndex) {
     box.classList.add("filled");
     if (item.image !== "") {
       const image = document.createElement("img");
-      image.src = "assets/items/" + item.image;
+      image.src = itemImageBase(item) + item.image;
       image.alt = item.name;
       image.draggable = false;
       box.appendChild(image);
     } else {
       box.textContent = "#" + item.number;
     }
-    box.title = "#" + item.number + " " + item.name;
+    box.title = "#" + item.number + " " + item.name + " - drag away to unequip";
     box.addEventListener("click", function () {
       openDetailOverlay(item.number);
+    });
+    // Dragging a filled box away from the slots unequips the item.
+    box.draggable = true;
+    box.addEventListener("dragstart", function (event) {
+      dragPayload = { kind: "equipped", number: item.number, buildId: build.id };
+      event.dataTransfer.setData("text/plain", String(item.number));
+      event.dataTransfer.effectAllowed = "move";
+    });
+    box.addEventListener("dragend", function () {
+      dragPayload = null;
     });
   }
   // Drop target: equipping via drag and drop from Available items.
@@ -1473,6 +1815,22 @@ function createSlotPicture(build, slotName, markerIndex) {
   box.addEventListener("drop", function (event) {
     event.preventDefault();
     box.classList.remove("drop-hover");
+    if (dragPayload !== null && dragPayload.kind === "equipped") {
+      // Moving an equipped item to another slot box: re-slot it if it fits,
+      // otherwise unequip it.
+      const movingItem = findItem(dragPayload.number);
+      dragPayload = null;
+      if (movingItem === null) {
+        return;
+      }
+      if (movingItem.slot === slotName
+        || (movingItem.slot === "two hands" && slotName === "one hand")) {
+        return; // already equipped in this slot
+      }
+      unequipFromBuild(build, movingItem.number);
+      equipIntoBuild(build, movingItem);
+      return;
+    }
     const droppedNumber = Number(event.dataTransfer.getData("text/plain"));
     const droppedItem = findItem(droppedNumber);
     if (droppedItem === null) {
@@ -1510,10 +1868,16 @@ function openDetailOverlay(itemNumber) {
   const chainItems = findFullCraftingChain(item);
   const parentItems = findItemsBuiltFrom(item);
 
+  // Items with a flipped effect have a second card side (issue #15).
+  const backImage = item.image !== "" ? item.image.replace(/\.webp$/, "-back.webp") : "";
+
   content.innerHTML =
     '<div class="detail-layout">' +
       (item.image !== ""
-        ? '<img class="detail-image" src="assets/items/' + item.image + '" alt="' + escapeHtml(item.name) + '" />'
+        ? '<div class="detail-card">' +
+            '<img class="detail-image" src="' + itemImageBase(item) + item.image + '" alt="' + escapeHtml(item.name) + '" />' +
+            '<button type="button" id="flip-card-button" class="flip-button">Flip card</button>' +
+          "</div>"
         : "") +
       '<div class="detail-info">' +
         "<h2>#" + item.number + " " + escapeHtml(item.name) + "</h2>" +
@@ -1546,6 +1910,17 @@ function openDetailOverlay(itemNumber) {
       "</div>" +
     "</div>";
 
+  const flipButton = content.querySelector("#flip-card-button");
+  if (flipButton !== null) {
+    let showingBack = false;
+    const frontImage = content.querySelector(".detail-image");
+    flipButton.addEventListener("click", function () {
+      showingBack = !showingBack;
+      frontImage.src = itemImageBase(item) + (showingBack ? backImage : item.image);
+      flipButton.textContent = showingBack ? "Show front" : "Flip card";
+    });
+  }
+
   content.querySelectorAll(".component-link[data-item]").forEach(function (linkButton) {
     linkButton.addEventListener("click", function () {
       if (linkButton.dataset.spoiler === "1") {
@@ -1572,11 +1947,12 @@ function openDetailOverlay(itemNumber) {
   // Add to build wishlist: choose one of the player's builds.
   const buildSelect = content.querySelector("#add-to-build-select");
   if (buildSelect !== null) {
+    const gameBuilds = builds.filter(function (candidate) { return buildGame(candidate) === activeGame; });
     const placeholder = document.createElement("option");
     placeholder.value = "";
-    placeholder.textContent = builds.length > 0 ? "Choose build..." : "No builds yet";
+    placeholder.textContent = gameBuilds.length > 0 ? "Choose build..." : "No builds yet";
     buildSelect.appendChild(placeholder);
-    builds.forEach(function (candidate) {
+    gameBuilds.forEach(function (candidate) {
       const option = document.createElement("option");
       option.value = candidate.id;
       option.textContent = candidate.title;
@@ -1691,6 +2067,7 @@ document.getElementById("new-build-button").addEventListener("click", function (
     title: "New build",
     characterIndex: 0,
     notes: "",
+    game: activeGame,
     campaignId: activeCampaignId,
     equippedItemNumbers: [],
     wishlistItemNumbers: []
@@ -1725,8 +2102,16 @@ async function start() {
   loadPlayerData();
 
   const response = await fetch("data/catalog.json");
-  catalog = await response.json();
+  catalogsByGame.frosthaven = await response.json();
+  try {
+    const gloomhavenResponse = await fetch("data/gloomhaven-catalog.json");
+    catalogsByGame.gloomhaven = await gloomhavenResponse.json();
+  } catch (error) {
+    catalogsByGame.gloomhaven = [];
+  }
+  catalog = catalogsByGame[activeGame] || [];
 
+  renderGameToggle();
   render();
 }
 

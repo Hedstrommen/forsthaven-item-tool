@@ -1,0 +1,11 @@
+{
+  "name": "frosthaven-item-tool-web-tests",
+  "private": true,
+  "description": "Headless DOM smoke tests for the static web frontend.",
+  "scripts": {
+    "test": "node smoke.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

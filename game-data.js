@@ -80,7 +80,7 @@ const SLOTS = ["head", "body", "legs", "one hand", "two hands", "small"];
 // The buildings that unlock items, in game order. Each building unlock adds
 // the listed item numbers to the campaign pool (mirrors the Frosthaven
 // building reward tables for the item unlocks).
-const BUILDING_UNLOCKS = [
+const FROSTHAVEN_BUILDING_UNLOCKS = [
   { building: "Initially Available", itemNumbers: [120, 121, 122, 123, 124, 125, 126, 127, 128] },
   { building: "Craftsman 1", itemNumbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
   { building: "Craftsman 2", itemNumbers: [11, 12, 13, 14, 15] },
@@ -99,11 +99,29 @@ const BUILDING_UNLOCKS = [
   { building: "Jeweler 3", itemNumbers: [164, 165, 166, 167] }
 ];
 
+// Gloomhaven has no buildings: item unlocks come from the town's prosperity
+// level instead. These play the same role as the Frosthaven buildings.
+const GLOOMHAVEN_BUILDING_UNLOCKS = [
+  { building: "Prosperity 1", itemNumbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] },
+  { building: "Prosperity 2", itemNumbers: [15, 16, 17, 18, 19, 20, 21] },
+  { building: "Prosperity 3", itemNumbers: [22, 23, 24, 25, 26, 27, 28] },
+  { building: "Prosperity 4", itemNumbers: [29, 30, 31, 32, 33, 34, 35] },
+  { building: "Prosperity 5", itemNumbers: [36, 37, 38, 39, 40, 41, 42] },
+  { building: "Prosperity 6", itemNumbers: [43, 44, 45, 46, 47, 48, 49] },
+  { building: "Prosperity 7", itemNumbers: [50, 51, 52, 53, 54, 55, 56] },
+  { building: "Prosperity 8", itemNumbers: [57, 58, 59, 60, 61, 62, 63] },
+  { building: "Prosperity 9", itemNumbers: [64, 65, 66, 67, 68, 69, 70] }
+];
+
+function buildingUnlocksForGame(game) {
+  return game === "gloomhaven" ? GLOOMHAVEN_BUILDING_UNLOCKS : FROSTHAVEN_BUILDING_UNLOCKS;
+}
+
 // Non-building unlock groups, used to organize the rest of the items on the
 // campaign page under separate headlines.
 function extraUnlockGroups() {
   const buildingNumbers = new Set();
-  BUILDING_UNLOCKS.forEach(function (entry) {
+  buildingUnlocksForGame(activeGame).forEach(function (entry) {
     entry.itemNumbers.forEach(function (number) { buildingNumbers.add(number); });
   });
   const groups = [];
@@ -119,6 +137,8 @@ function extraUnlockGroups() {
       label = "Random items";
     } else if (item.source.indexOf("Random Blueprint") !== -1) {
       label = "Blueprints";
+    } else if (item.source.indexOf("Random Item") !== -1) {
+      label = "Random items";
     } else {
       label = "Other unlocks";
     }
