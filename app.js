@@ -344,49 +344,79 @@ let browseAvailabilityFilter = "all"; // all | unlocked | craftable | purchasabl
 let browseCategoryFilter = "";        // grouped source category
 let campaignViewMode = "unlock";       // unlock | available
 
-// Grouped source categories: many specific sources roll up into one entry,
-// while the specific sources stay selectable too.
+// The fixed source filter list on the All Items page. Specific building
+// sources match exactly; everything else rolls up into a category.
+const SOURCE_FILTERS = [
+  { value: "", label: "All items" },
+  { value: "Craftsman 1", label: "Craftsman 1" },
+  { value: "Craftsman 2", label: "Craftsman 2" },
+  { value: "Craftsman 3", label: "Craftsman 3" },
+  { value: "Craftsman 4", label: "Craftsman 4" },
+  { value: "Craftsman 5", label: "Craftsman 5" },
+  { value: "Craftsman 6", label: "Craftsman 6" },
+  { value: "Craftsman 7", label: "Craftsman 7" },
+  { value: "Craftsman 8", label: "Craftsman 8" },
+  { value: "Craftsman 9", label: "Craftsman 9" },
+  { value: "Initially Available", label: "Initially available" },
+  { value: "Jeweler 1", label: "Jeweler 1" },
+  { value: "Jeweler 2", label: "Jeweler 2" },
+  { value: "Jeweler 3", label: "Jeweler 3" },
+  { value: "Loot Deck Random", label: "Random item (loot deck)" },
+  { value: "Random Blueprint", label: "Random blueprint" },
+  { value: "Outpost events", label: "Outpost events" },
+  { value: "Road events", label: "Road events" },
+  { value: "Trading Post 2", label: "Trading post 2" },
+  { value: "Trading Post 3", label: "Trading post 3" },
+  { value: "Trading Post 4", label: "Trading post 4" },
+  { value: "Alchemy", label: "Alchemy" },
+  { value: "Scenario rewards", label: "Scenario rewards" },
+  { value: "Solo scenario rewards", label: "Solo scenario rewards" },
+  { value: "Treasure chests", label: "Treasure chests" },
+  { value: "other", label: "Other" }
+];
+
 function sourceCategory(source) {
   if (source.indexOf("Alchemy") !== -1) { return "Alchemy"; }
-  if (source.indexOf("Treasure") !== -1) { return "Treasure"; }
+  if (source.indexOf("Treasure") !== -1) { return "Treasure chests"; }
   if (source.indexOf("Solo Scenario") !== -1) { return "Solo scenario rewards"; }
   if (/^Scenario \d/.test(source)) { return "Scenario rewards"; }
   if (/^(WR-|Road)/.test(source)) { return "Road events"; }
   if (/^(WO-|Outpost|Boat Event)/.test(source)) { return "Outpost events"; }
-  return null;
+  if (source.indexOf("Loot Deck Random") !== -1) { return "Loot Deck Random"; }
+  if (source.indexOf("Random Blueprint") !== -1) { return "Random Blueprint"; }
+  return "other";
+}
+
+// Building sources are matched exactly so e.g. "Craftsman 3\nTreasure 50"
+// only shows up under Treasure chests, not under Craftsman 3.
+function isExactBuildingSource(source) {
+  return /^(Craftsman|Jeweler|Trading Post|Initially Available)\d?/.test(source.trim())
+    && source.indexOf("\n") === -1;
 }
 
 function sourceMatchesFilter(item, sourceFilter) {
   if (sourceFilter === "" || sourceFilter === null) {
     return true;
   }
-  if (sourceFilter.indexOf("category:") === 0) {
-    return sourceCategory(item.source) === sourceFilter.slice("category:".length);
+  if (sourceFilter === "other") {
+    return sourceCategory(item.source) === "other";
   }
-  return item.source === sourceFilter;
+  if (isExactBuildingSource(item.source)) {
+    return item.source.trim() === sourceFilter;
+  }
+  const category = sourceCategory(item.source);
+  if (category === sourceFilter) {
+    return true;
+  }
+  // Building sources may appear as one line of a combined source.
+  if (/^(Craftsman|Jeweler|Trading Post)/.test(sourceFilter)) {
+    return false;
+  }
+  return false;
 }
 
 function sourceFilterOptions() {
-  const options = [];
-  const categories = [];
-  const specifics = new Set();
-  catalog.forEach(function (item) {
-    const category = sourceCategory(item.source);
-    if (category !== null) {
-      if (!categories.includes(category)) {
-        categories.push(category);
-      }
-    } else {
-      specifics.add(item.source);
-    }
-  });
-  categories.sort();
-  Array.from(specifics).sort().forEach(function (source) {
-    options.push({ value: source, label: source.replace(/\n/g, " / ") });
-  });
-  return options.concat(categories.map(function (category) {
-    return { value: "category:" + category, label: category + " (all)" };
-  }));
+  return SOURCE_FILTERS;
 }
 
 function allSources() {
