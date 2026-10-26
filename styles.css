@@ -438,6 +438,11 @@ li.spoiler-hidden {
   background: rgba(13, 22, 30, 0.6);
 }
 
+/* The lone fifth item box in the last row stays centered under the grid */
+.slot-panel .slot-box:last-child:nth-child(3n + 1) {
+  grid-column: 2;
+}
+
 .slot-box { display: flex; flex-direction: column; gap: 6px; }
 
 .slot-header {

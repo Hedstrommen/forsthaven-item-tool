@@ -180,9 +180,14 @@ function findBuildingUnlock(buildingName) {
   return BUILDING_UNLOCKS.find(function (entry) { return entry.building === buildingName; }) || null;
 }
 
-// The items a campaign currently has available for builds.
+// The items a campaign currently has available for builds. The Initially
+// Available items are in every campaign's pool by default.
 function campaignPool(campaign) {
   const pool = new Set();
+  const initial = findBuildingUnlock("Initially Available");
+  if (initial !== null) {
+    initial.itemNumbers.forEach(function (number) { pool.add(number); });
+  }
   for (const buildingName of campaign.unlockedBuildings) {
     const entry = findBuildingUnlock(buildingName);
     if (entry !== null) {
@@ -952,7 +957,8 @@ function renderSingleBuildPage(buildId) {
     { label: "Item", slot: "small", markerIndex: 0 },
     { label: "Item", slot: "small", markerIndex: 1 },
     { label: "Item", slot: "small", markerIndex: 2 },
-    { label: "Item", slot: "small", markerIndex: 3 }
+    { label: "Item", slot: "small", markerIndex: 3 },
+    { label: "Item", slot: "small", markerIndex: 4 }
   ];
   for (const group of panelGroups) {
     const slotBox = document.createElement("div");
