@@ -429,18 +429,15 @@ li.spoiler-hidden {
 
 /* Slot panel: its own box below the artwork, one header per slot type with
    a small picture box under it. */
+/* Slot panel: a perfect 5x2 rectangle below the artwork.
+   Row 1: Head, Body, Legs, Hand, Hand - Row 2: Item x5. */
 .slot-panel {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
   padding: 12px;
   border-top: 1px solid var(--border);
   background: rgba(13, 22, 30, 0.6);
-}
-
-/* The lone fifth item box in the last row stays centered under the grid */
-.slot-panel .slot-box:last-child:nth-child(3n + 1) {
-  grid-column: 2;
 }
 
 .slot-box { display: flex; flex-direction: column; gap: 6px; }
@@ -456,7 +453,6 @@ li.spoiler-hidden {
 }
 
 .slot-picture {
-  aspect-ratio: 3 / 4;
   border-radius: 8px;
   background: rgba(20, 34, 48, 0.85);
   border: 2px dashed var(--border);
@@ -464,10 +460,10 @@ li.spoiler-hidden {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   cursor: pointer;
   overflow: hidden;
-  min-height: 72px;
+  aspect-ratio: 3 / 4;
 }
 .slot-picture img {
   width: 100%;
