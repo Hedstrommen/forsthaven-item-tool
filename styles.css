@@ -52,7 +52,28 @@ button { cursor: pointer; font-family: inherit; }
   overflow-y: auto;
 }
 
-.brand { margin-bottom: 18px; }
+.brand { margin-bottom: 12px; }
+
+/* Header game toggle: switch between Frosthaven and Gloomhaven items */
+.game-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.game-toggle-button {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(20, 34, 48, 0.85);
+  color: var(--muted);
+}
+.game-toggle-button.active {
+  border-color: var(--accent);
+  color: var(--parchment);
+  background: rgba(31, 58, 82, 0.9);
+}
 .brand-title {
   display: block;
   font-size: 1.5rem;
@@ -360,7 +381,16 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
   width: 100%;
 }
 .detail-layout { display: flex; gap: 20px; flex-wrap: wrap; }
-.detail-image { width: 260px; align-self: flex-start; border-radius: 8px; }
+.detail-card { display: flex; flex-direction: column; gap: 8px; align-self: flex-start; }
+.detail-image { width: 260px; border-radius: 8px; }
+.flip-button {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(20, 34, 48, 0.85);
+  color: var(--parchment);
+}
 .detail-info { flex: 1; min-width: 240px; }
 .recipe-list { list-style: none; padding: 0; margin: 8px 0; }
 .recipe-list li {
@@ -422,7 +452,9 @@ li.spoiler-hidden {
 /* Character stage: the artwork stays at original size; the equipment slots
    live in their own separate panel below it. */
 .character-stage {
-  position: relative;
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
   flex-shrink: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -568,7 +600,7 @@ li.spoiler-hidden {
 }
 .confirm-text { display: none; color: var(--danger); font-size: 0.85rem; }
 .confirm-yes, .delete-wrap .cancel { display: none; }
-.delete-wrap.confirming > button { display: none; }
+.delete-wrap.confirming > button:not(.confirm-yes):not(.cancel) { display: none; }
 .delete-wrap.confirming .confirm-text,
 .delete-wrap.confirming .confirm-yes,
 .delete-wrap.confirming .cancel { display: inline-block; }

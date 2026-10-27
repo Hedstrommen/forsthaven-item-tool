@@ -2,12 +2,13 @@
 
 A companion tool for the board game **Frosthaven** that lets you:
 
-1. Browse every item in the game in one big list, with card images, search, slot/potion filters and sorting
-2. Track your **campaigns**: check the buildings you have unlocked (Craftsman, Trading Post, Jeweler, Alchemist) to add their item sets, or add items from the other groups (Blueprints, Random items, other unlocks)
+1. Browse every item in the game in one big list, with card images, search, slot/potion filters and sorting — flip any card to see its spent/back side
+2. Track your **campaigns**: check the buildings you have unlocked (Craftsman, Trading Post, Jeweler, Alchemist) to add their item sets, add items from the other groups (Blueprints, Random items, other unlocks), or search and add specific cards manually
 3. Save any number of **builds** — a titled loadout for one character with notes — listed in the sidebar on the left
 4. Pick characters from Frosthaven, Gloomhaven, Jaws of the Lion and the Mercenary Packs, grouped by game
 5. Open any item to see its full card, crafting requirements, the complete crafting chain and which items it is used to build
-6. View a build with the character artwork and the equipment slots over the matching body parts (head, body, legs, hands)
+6. View a build with the character artwork and the equipment slots over the matching body parts (head, body, legs, hands) — drag an item away from its slot to unequip it
+7. Switch the whole tool between **Frosthaven** and **Gloomhaven** items with the toggle at the top of the sidebar (campaigns and builds are tracked per game)
 
 Card text uses inline SVG icons (attack, move, range, heal, shield, conditions, elements) matching the game's iconography.
 
@@ -35,8 +36,11 @@ src/FrosthavenItemTool.CatalogGenerator   Console tool: raw dataset -> catalog.j
 
 app.js, game-data.js, icons.js, styles.css
                Static web frontend (GitHub Pages), mirrors the domain rules
-data/          Raw community dataset (source of truth for the generator)
-tests/         Unit tests for the domain and application layers
+data/          Raw community dataset (source of truth for the generator), plus the
+               generated catalogs (catalog.json = Frosthaven,
+               gloomhaven-catalog.json = Gloomhaven)
+tests/         Unit tests for the domain and application layers;
+               tests/web holds headless DOM smoke tests for the frontend
 ```
 
 The C# layers are the tested source of truth for all game rules (equipment slot limits, crafting chains, unlock pool). The JavaScript frontend is a thin translation of those rules for the browser.
@@ -59,6 +63,24 @@ Requires the .NET 8 SDK:
 ```bash
 dotnet test FrosthavenItemTool.sln
 ```
+
+## Running the web smoke tests
+
+The headless DOM smoke tests render the real app with jsdom:
+
+```bash
+cd tests/web
+npm install
+npm test
+```
+
+## Gloomhaven item data
+
+`data/gloomhaven-items-source.json` is a raw community dataset of the 151
+base-game Gloomhaven items (from heisch/gloomhaven-item-db). Card images live
+in `assets/items-gloomhaven/` (from any2cards/worldhaven). The generated
+`data/gloomhaven-catalog.json` follows the same entry shape as the Frosthaven
+catalog, with an `imageBase` pointing at the Gloomhaven asset folder.
 
 ## Regenerating the item catalog
 
