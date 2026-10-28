@@ -634,7 +634,9 @@
    18,
    96
   ],
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "Up to once each turn during your move ability, suffer ^damage^ 1, then flip this card over at the end of your turn.",
+  "backImage": "031-035-fh-033-volatile-boots-back.webp"
  },
  {
   "number": 34,
@@ -957,7 +959,9 @@
    105,
    161
   ],
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During your melee attack ability, add $wfh-pierce$ 1 to one attack and flip this card over.",
+  "backImage": "046-050-fh-050-shield-of-reciprocity-back.webp"
  },
  {
   "number": 51,
@@ -1270,7 +1274,9 @@
    1,
    93
   ],
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During you attack ability add +1 ^attack^ to one attack instead of drawing an attack modifier card and flip this card over.",
+  "backImage": "066-082-fh-067-converging-lenses-back.webp"
  },
  {
   "number": 68,
@@ -1477,7 +1483,9 @@
   "components": [
    110
   ],
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "Once each turn, during your attack ability, gain disadvantage on one attack, then flip this card over at the end of your turn.",
+  "backImage": "066-082-fh-078-balanced-scales-back.webp"
  },
  {
   "number": 79,
@@ -2685,7 +2693,9 @@
   "description": "After the next three attacks targeting an ally within ^fh-range^ 2, flip this card over.",
   "isPotion": false,
   "image": "129-167-fh-148-circlet-of-sanctity.webp",
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During your turn, perform: $wfh-ward$ ~!^fh-range^3!~ then flip this card over.",
+  "backImage": "129-167-fh-148-circlet-of-sanctity-back.webp"
  },
  {
   "number": 149,
@@ -3205,7 +3215,9 @@
   "description": "During your heal ability targeting an ally, @wfh-light-consume@ to add $wfh-regenerate$ to one heal and flip this card over.",
   "isPotion": false,
   "image": "193-247-fh-200-eventide-scepter.webp",
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During your attack ability, @wfh-dark-consume@ to add $wfh-curse$ to one attack and flip this card over.",
+  "backImage": "193-247-fh-200-eventide-scepter-back.webp"
  },
  {
   "number": 201,
@@ -3335,7 +3347,9 @@
   "description": "During your attack ability @wfh-ice-consume@ to add $wfh-immobilize$ to one attack, then flip this card over at the end of your turn.",
   "isPotion": false,
   "image": "193-247-fh-213-key-of-seasons.webp",
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During your attack ability @wfh-fire-consume@ to add $wfh-wound$ to one attack, then flip this card over at the end of your turn.",
+  "backImage": "193-247-fh-213-key-of-seasons-back.webp"
  },
  {
   "number": 214,
@@ -3445,7 +3459,9 @@
   "description": "After the next three attacks targeting you, flip this card over.",
   "isPotion": false,
   "image": "193-247-fh-224-armor-of-empathy.webp",
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During your turn, perform ^fh-heal^ 3 ~!^target^ 1 ally, ^fh-range^ 3, $wfh-bless$!~ then flip this card over.",
+  "backImage": "193-247-fh-224-armor-of-empathy-back.webp"
  },
  {
   "number": 225,
@@ -3455,7 +3471,9 @@
   "description": "During your melee attack ability, @wfh-earth-consume@ to add +1 ^attack^ to one attack and flip this card over.",
   "isPotion": false,
   "image": "193-247-fh-225-algox-carving.webp",
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During your melee attack ability, @wfh-air-consume@ to add $wfh-push$ 2 to one attack and flip this card over.",
+  "backImage": "193-247-fh-225-algox-carving-back.webp"
  },
  {
   "number": 226,
@@ -3735,7 +3753,9 @@
   "description": "During your ranged attack ability while in ^fh-geminate-right^, gain advantage for one attack, then flip this card over.",
   "isPotion": false,
   "image": "248-264-fh-253-mask-of-duality.webp",
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "When an enemy performs an attack targeting you while you are in ^fh-geminate-left^, the attacker gains disadvantage, then flip this card over.",
+  "backImage": "248-264-fh-253-mask-of-duality-back.webp"
  },
  {
   "number": 254,
@@ -3795,7 +3815,9 @@
   "description": "During an attack ability you grant an ally, add $wfh-push$ 2 to one of their attacks, then flip this card over.",
   "isPotion": false,
   "image": "248-264-fh-259-storm-carving.webp",
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During your attack ability you, add $wfh-pull$ 2 to one attack, then flip this card over.",
+  "backImage": "248-264-fh-259-storm-carving-back.webp"
  },
  {
   "number": 260,
@@ -3825,7 +3847,9 @@
   "description": "During your move ability, when you have ^fh-meter-yellow^ or ^fh-meter-red^, add +1 ^fh-move^, then flip this card over at the end of your turn.",
   "isPotion": false,
   "image": "248-264-fh-262-exhaust-boots.webp",
-  "game": "frosthaven"
+  "game": "frosthaven",
+  "backDescription": "During your turn when you have ^fh-meter-blue^, perform: $wfh-muddle$ ~!^fh-range^ 1!~ then flip this card over at the end of your turn.",
+  "backImage": "248-264-fh-262-exhaust-boots-back.webp"
  },
  {
   "number": 263,

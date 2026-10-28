@@ -163,6 +163,13 @@ function runChecks(w, dom) {
       if (w.__get("builds[0].equippedItemNumbers.length") !== 1) throw new Error("not equipped");
     });
 
+    // issue 28: no potions dropdown in build mode
+    t("build mode has no potions dropdown", () => {
+      const labels = Array.from(w.document.querySelectorAll(".slot-picker")).map(s => s.options[0].textContent);
+      if (labels.some(l => l.indexOf("Potion") !== -1)) throw new Error(labels.join(","));
+      if (!labels.some(l => l.indexOf("Items") === 0)) throw new Error(labels.join(","));
+    });
+
     // issue 22: slot picture draggable
     t("filled slot is draggable (unequip source)", () => {
       const filled = w.document.querySelector(".slot-picture.filled");
@@ -176,16 +183,24 @@ function runChecks(w, dom) {
       if (w.__get("builds[0].equippedItemNumbers.length") !== before - 1) throw new Error("still equipped");
     });
 
-    // issue 15: flip card in detail overlay
-    t("detail overlay has flip button (gh)", () => {
+    // issue 26: explicit unequip button on filled slot boxes
+    t("filled slot has an unequip button that works", () => {
+      // re-equip first: the drop test above already unequipped the item
+      dom.window.eval("equipIntoBuild(builds[0], findItem(1));");
+      const filled = w.document.querySelector(".slot-picture.filled");
+      const btn = filled.querySelector(".slot-unequip");
+      if (!btn) throw new Error("no unequip button");
+      const before = w.__get("builds[0].equippedItemNumbers.length");
+      btn.click();
+      if (w.__get("builds[0].equippedItemNumbers.length") !== before - 1) throw new Error("still equipped");
+    });
+
+    // issues 15 + 24: flip card in detail overlay, only for items with a
+    // real flipped side. Gloomhaven item 1 has no backImage: no flip button.
+    t("gh item without flipped side has no flip button", () => {
       w.openDetailOverlay(1);
       const flip = w.document.getElementById("flip-card-button");
-      if (!flip) throw new Error("no flip button");
-      const img = w.document.querySelector(".detail-image");
-      const front = img.getAttribute("src");
-      flip.click();
-      if (img.getAttribute("src") === front) throw new Error("image did not change");
-      if (img.getAttribute("src").indexOf("-back") === -1) throw new Error("not back image: " + img.getAttribute("src"));
+      if (flip) throw new Error("flip button offered for a non-flippable card");
     });
 
     // switch back to frosthaven
@@ -193,17 +208,37 @@ function runChecks(w, dom) {
       w.setActiveGame("frosthaven");
       if (w.__get("catalog.length") !== 264) throw new Error("fh catalog=" + w.__get("catalog.length"));
     });
-    t("fh detail flip works", () => {
+    t("fh item 1 (non-flippable) has no flip button", () => {
       w.openDetailOverlay(1);
       const flip = w.document.getElementById("flip-card-button");
-      if (!flip) throw new Error("no flip");
+      if (flip) throw new Error("flip button offered for a non-flippable card");
+    });
+    t("fh item 33 (Volatile Boots) flips to its real back side", () => {
+      w.openDetailOverlay(33);
+      const flip = w.document.getElementById("flip-card-button");
+      if (!flip) throw new Error("no flip button on a flippable card");
       const img = w.document.querySelector(".detail-image");
+      const front = img.getAttribute("src");
       flip.click();
-      if (img.getAttribute("src").indexOf("-back") === -1) throw new Error(img.getAttribute("src"));
+      if (img.getAttribute("src") === front) throw new Error("image did not change");
+      if (img.getAttribute("src").indexOf("volatile-boots-back") === -1) throw new Error(img.getAttribute("src"));
+      flip.click();
+      if (img.getAttribute("src") !== front) throw new Error("did not flip back");
     });
     t("sidebar shows no gh campaigns in fh mode", () => {
       const names = Array.from(w.document.querySelectorAll("#sidebar-campaigns .sidebar-build strong")).map(e => e.textContent);
       if (names.length !== 0) throw new Error(names.join(","));
+    });
+
+    // issue 25: broken image loads fall back to the item name
+    t("item card image falls back on load error", () => {
+      const img = w.document.querySelector(".item-card img");
+      if (!img) throw new Error("no card image");
+      const itemNumber = Number(img.alt.replace(/^#(\d+).*$/, "$1"));
+      img.dispatchEvent(new w.Event("error", { bubbles: false }));
+      const fallback = w.document.querySelector(".item-card .item-fallback");
+      if (!fallback) throw new Error("no fallback shown");
+      if (fallback.textContent.indexOf("#" + itemNumber) === -1) throw new Error("wrong item");
     });
 
     // issue 18: delete build confirmation

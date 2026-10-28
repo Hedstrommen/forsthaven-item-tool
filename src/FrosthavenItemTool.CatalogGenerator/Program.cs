@@ -28,7 +28,14 @@ public static class Program
             ?? new List<SourceItem>();
 
         // Index the card images by item number so every item can find its picture.
-        Dictionary<int, string> imageNamesByItemNumber = BuildImageIndex(itemsAssetFolder);
+        Dictionary<int, string> imageNamesByItemNumber = BuildImageIndex(itemsAssetFolder, false);
+        // Only items with a flipped effect have a real back side; the rest are
+        // generic card backs and must not be offered as a flip.
+        Dictionary<int, string> backImageNamesByItemNumber = BuildImageIndex(itemsAssetFolder, true);
+        Dictionary<int, string> backDescriptionsByItemNumber = sourceItems
+            .Where(sourceItem => !string.IsNullOrWhiteSpace(sourceItem.BackDesc))
+            .GroupBy(sourceItem => sourceItem.Id)
+            .ToDictionary(group => group.Key, group => group.First().BackDesc!);
 
         List<Item> items = new List<Item>();
         HashSet<int> seenItemNumbers = new HashSet<int>();
@@ -52,7 +59,13 @@ public static class Program
         List<CatalogEntry> entries = new List<CatalogEntry>();
         foreach (Item item in catalog.AllItems)
         {
-            entries.Add(CreateEntry(item, imageNamesByItemNumber));
+            string backImage = backImageNamesByItemNumber.GetValueOrDefault(item.ItemNumber, "");
+            if (backImage != "" && !backDescriptionsByItemNumber.ContainsKey(item.ItemNumber))
+            {
+                // No flipped effect text means the back is a generic card back.
+                backImage = "";
+            }
+            entries.Add(CreateEntry(item, backImage, backDescriptionsByItemNumber.GetValueOrDefault(item.ItemNumber)));
         }
 
         JsonSerializerOptions serializerOptions = new JsonSerializerOptions
@@ -68,15 +81,17 @@ public static class Program
 
     // Scans the flat asset folder and maps each card image to its item number.
     // File names look like "051-065-fh-051a-spiked-collar-back.webp"; the item
-    // number is the digits right after "fh-". Backs are skipped because the
-    // front image is the one shown in lists.
-    private static Dictionary<int, string> BuildImageIndex(string itemsAssetFolder)
+    // number is the digits right after "fh-". Normally the fronts are indexed
+    // (the back images are generic card backs); when wantBacks is true only
+    // the back images are indexed, for items with a real flipped side.
+    private static Dictionary<int, string> BuildImageIndex(string itemsAssetFolder, bool wantBacks)
     {
         Dictionary<int, string> imageNamesByItemNumber = new Dictionary<int, string>();
         foreach (string filePath in Directory.GetFiles(itemsAssetFolder, "*.webp"))
         {
             string fileName = Path.GetFileNameWithoutExtension(filePath);
-            if (fileName.EndsWith("-back"))
+            bool isBack = fileName.EndsWith("-back");
+            if (isBack != wantBacks)
             {
                 continue;
             }
@@ -187,7 +202,7 @@ public static class Program
         }
     }
 
-    private static CatalogEntry CreateEntry(Item item, Dictionary<int, string> imageNamesByItemNumber)
+    private static CatalogEntry CreateEntry(Item item, string backImage, string? backDescription)
     {
         CatalogEntry entry = new CatalogEntry
         {
@@ -197,7 +212,9 @@ public static class Program
             Source = item.Source,
             Description = item.Description,
             IsPotion = item.IsPotion,
-            Image = item.ImageName
+            Image = item.ImageName,
+            BackImage = backImage,
+            BackDescription = backDescription ?? ""
         };
 
         if (item.CraftingRecipe is not null)
@@ -224,6 +241,7 @@ public sealed class SourceItem
     public SourceResources? Resources { get; set; }
     public string? Source { get; set; }
     public string? Desc { get; set; }
+    public string? BackDesc { get; set; }
 }
 
 /// <summary>Raw shape of the resources block in the community dataset.</summary>
@@ -251,6 +269,8 @@ public sealed class CatalogEntry
     public string Description { get; set; } = "";
     public bool IsPotion { get; set; }
     public string Image { get; set; } = "";
+    public string BackImage { get; set; } = "";
+    public string BackDescription { get; set; } = "";
     public List<ResourceEntry>? Resources { get; set; }
     public List<int>? Components { get; set; }
 }
