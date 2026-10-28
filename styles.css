@@ -381,8 +381,8 @@ main { flex: 1; padding: 22px 26px; max-width: 1200px; }
   width: 100%;
 }
 .detail-layout { display: flex; gap: 20px; flex-wrap: wrap; }
-.detail-card { display: flex; flex-direction: column; gap: 8px; align-self: flex-start; }
-.detail-image { width: 260px; border-radius: 8px; }
+.detail-card { display: flex; flex-direction: column; gap: 8px; align-self: flex-start; max-width: 100%; }
+.detail-image { width: 260px; max-width: 100%; border-radius: 8px; }
 .flip-button {
   padding: 6px 12px;
   font-size: 0.85rem;
@@ -517,16 +517,38 @@ li.spoiler-hidden {
   cursor: pointer;
   overflow: hidden;
   aspect-ratio: 3 / 4;
+  position: relative;
 }
+/* The whole card must be readable, also on small phone boxes, so the
+   image is contained instead of cropped (issue #29). */
 .slot-picture img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: top;
 }
 .slot-picture.filled { border-style: solid; border-color: var(--accent-warm); }
 .slot-picture.mirrored { opacity: 0.45; border-style: dashed; }
 .slot-picture.drop-hover { border-color: var(--accent); box-shadow: 0 0 12px rgba(86, 180, 200, 0.4); }
+
+/* Explicit unequip button on a filled slot box (touch screens have no
+   drag and drop). Sits in the corner of the card picture. */
+.slot-unequip {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--danger);
+  background: rgba(13, 22, 30, 0.85);
+  color: var(--danger);
+  font-size: 0.8rem;
+  line-height: 1;
+  z-index: 2;
+}
+.slot-unequip:hover { background: var(--danger); color: #1c0c0c; }
 
 /* Available items on the build page */
 .available-grid {
@@ -551,7 +573,7 @@ li.spoiler-hidden {
 .available-picture img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: top;
   pointer-events: none;
 }
@@ -683,7 +705,7 @@ li.spoiler-hidden {
   .item-card { padding: 4px; border-radius: 8px; }
 
   /* Taller stacked areas stay usable */
-  .character-stage { width: 100%; }
+  .character-stage { width: 100%; position: static; }
   .build-layout { gap: 14px; }
   .slot-picture { min-height: 56px; }
   .available-grid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); }

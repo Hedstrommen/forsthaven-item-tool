@@ -366,6 +366,20 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Attaches a fallback to an item card image: if the picture fails to load
+// (offline, stale cache, missing file) the item name and number are shown
+// instead of a broken-image box (issue #25).
+function attachImageFallback(image, item) {
+  image.addEventListener("error", function () {
+    const fallback = document.createElement("div");
+    fallback.className = "item-fallback";
+    fallback.innerHTML =
+      '<span class="item-number">#' + item.number + "</span>" +
+      '<span class="item-name">' + escapeHtml(item.name) + "</span>";
+    image.replaceWith(fallback);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Page rendering
 // ---------------------------------------------------------------------------
@@ -767,6 +781,7 @@ function createItemCard(item) {
     image.src = itemImageBase(item) + item.image;
     image.alt = "#" + item.number + " " + item.name;
     image.loading = "lazy";
+    attachImageFallback(image, item);
     card.appendChild(image);
   } else {
     const fallback = document.createElement("div");
@@ -1399,8 +1414,7 @@ function renderSingleBuildPage(buildId) {
     { label: "Head", slot: "head" },
     { label: "Body", slot: "body" },
     { label: "Legs", slot: "legs" },
-    { label: "Items", slot: "small" },
-    { label: "Potions", slot: null, potionsOnly: true }
+    { label: "Items", slot: "small" }
   ];
   let anyOptions = false;
   const pickerWrap = document.createElement("div");
@@ -1639,6 +1653,7 @@ function renderAvailableItems(build, filterText, container) {
       image.src = itemImageBase(item) + item.image;
       image.alt = item.name;
       image.draggable = false;
+      attachImageFallback(image, item);
       picture.appendChild(image);
     } else {
       picture.textContent = "#" + item.number;
@@ -1785,11 +1800,25 @@ function createSlotPicture(build, slotName, markerIndex) {
       image.src = itemImageBase(item) + item.image;
       image.alt = item.name;
       image.draggable = false;
+      attachImageFallback(image, item);
       box.appendChild(image);
     } else {
       box.textContent = "#" + item.number;
     }
     box.title = "#" + item.number + " " + item.name + " - drag away to unequip";
+    // Explicit unequip button: HTML5 drag and drop does not work on touch
+    // screens, so a visible button is the reliable way to remove an item
+    // (issue #26). It also works with a mouse.
+    const unequipButton = document.createElement("button");
+    unequipButton.type = "button";
+    unequipButton.className = "slot-unequip";
+    unequipButton.title = "Unequip " + item.name;
+    unequipButton.textContent = "✕";
+    unequipButton.addEventListener("click", function (event) {
+      event.stopPropagation();
+      unequipFromBuild(build, item.number);
+    });
+    box.appendChild(unequipButton);
     box.addEventListener("click", function () {
       openDetailOverlay(item.number);
     });
@@ -1868,15 +1897,18 @@ function openDetailOverlay(itemNumber) {
   const chainItems = findFullCraftingChain(item);
   const parentItems = findItemsBuiltFrom(item);
 
-  // Items with a flipped effect have a second card side (issue #15).
-  const backImage = item.image !== "" ? item.image.replace(/\.webp$/, "-back.webp") : "";
+  // Only items with a flipped effect (backImage in the catalog) have a real
+  // other side; every other back image is a generic card back (issue #24).
+  const hasFlipSide = item.image !== "" && item.backImage !== undefined && item.backImage !== "";
 
   content.innerHTML =
     '<div class="detail-layout">' +
       (item.image !== ""
         ? '<div class="detail-card">' +
             '<img class="detail-image" src="' + itemImageBase(item) + item.image + '" alt="' + escapeHtml(item.name) + '" />' +
-            '<button type="button" id="flip-card-button" class="flip-button">Flip card</button>' +
+            (hasFlipSide
+              ? '<button type="button" id="flip-card-button" class="flip-button">Flip card</button>'
+              : "") +
           "</div>"
         : "") +
       '<div class="detail-info">' +
@@ -1913,10 +1945,11 @@ function openDetailOverlay(itemNumber) {
   const flipButton = content.querySelector("#flip-card-button");
   if (flipButton !== null) {
     let showingBack = false;
-    const frontImage = content.querySelector(".detail-image");
+    const detailImage = content.querySelector(".detail-image");
     flipButton.addEventListener("click", function () {
       showingBack = !showingBack;
-      frontImage.src = itemImageBase(item) + (showingBack ? backImage : item.image);
+      detailImage.src = itemImageBase(item) + (showingBack ? item.backImage : item.image);
+      detailImage.alt = escapeHtml(item.name) + (showingBack ? " (flipped side)" : "");
       flipButton.textContent = showingBack ? "Show front" : "Flip card";
     });
   }
