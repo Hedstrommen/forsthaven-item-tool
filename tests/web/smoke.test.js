@@ -195,6 +195,39 @@ function runChecks(w, dom) {
       if (w.__get("builds[0].equippedItemNumbers.length") !== before - 1) throw new Error("still equipped");
     });
 
+    // issues 31-33: every character has artwork
+    t("all characters have an artwork asset", () => {
+      const chars = dom.window.eval("CHARACTERS");
+      const fs = require("fs");
+      const path = require("path");
+      const missing = chars.filter(c => !c.slug || !fs.existsSync(path.join(__dirname, "..", "..", "assets", "characters", c.slug + ".webp")));
+      if (missing.length !== 0) throw new Error(missing.map(c => c.name).join(","));
+    });
+    t("gh character artwork renders on the build page", () => {
+      dom.window.eval("builds[0].characterIndex = CHARACTERS.findIndex(c => c.name === 'Brute'); render();");
+      const img = w.document.querySelector(".character-stage .artwork-frame img");
+      if (!img) throw new Error("no artwork");
+      if (img.getAttribute("src") !== "assets/characters/gh-brute.webp") throw new Error(img.getAttribute("src"));
+    });
+
+    // issue 34: build stage themed from the chosen character's colors
+    t("character stage is themed from the character artwork", () => {
+      const stage = w.document.querySelector(".character-stage");
+      if (!stage.classList.contains("character-themed")) throw new Error("stage not themed");
+      const accent = stage.style.getPropertyValue("--char-accent").trim();
+      if (!/^#[0-9a-f]{6}$/i.test(accent)) throw new Error("no accent color: " + accent);
+    });
+
+    // issue 35: page theme follows the active game
+    t("body theme class follows active game", () => {
+      if (!w.document.body.classList.contains("theme-gloomhaven")) throw new Error("gh theme missing");
+      w.setActiveGame("frosthaven");
+      if (w.document.body.classList.contains("theme-gloomhaven")) throw new Error("gh theme not removed");
+      w.setActiveGame("gloomhaven");
+      dom.window.eval("render();");
+    });
+
+
     // issues 15 + 24: flip card in detail overlay, only for items with a
     // real flipped side. Gloomhaven item 1 has no backImage: no flip button.
     t("gh item without flipped side has no flip button", () => {

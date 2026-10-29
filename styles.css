@@ -716,3 +716,48 @@ li.spoiler-hidden {
   .controls { gap: 6px; }
   .controls input { min-width: 120px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Issue #35: Gloomhaven palette. When the Gloomhaven toggle is active the
+   whole page shifts from Frosthaven's frost blue to Gloomhaven's aged
+   parchment-and-oxblood tones.
+   --------------------------------------------------------------------------- */
+body.theme-gloomhaven {
+  --background: #170f0a;
+  --background-image: linear-gradient(180deg, #241611 0%, #170f0a 40%, #1c120d 100%);
+  --surface: #2b1c14;
+  --surface-bright: #3d2919;
+  --border: #57402d;
+  --text: #e7dcc3;
+  --parchment: #e7dcc3;
+  --muted: #b09877;
+  --accent: #c98b3f;
+  --accent-warm: #b5651d;
+  --gold: #d8a24a;
+}
+
+/* ---------------------------------------------------------------------------
+   Issue #34: character-themed build stage. The character stage picks up the
+   dominant background and accent colours extracted from the character's own
+   artwork so the panel matches the character's palette.
+   --------------------------------------------------------------------------- */
+.character-stage.character-themed {
+  --char-bg: #142230;
+  --char-accent: #56b4c8;
+  border-color: color-mix(in srgb, var(--char-accent) 55%, var(--border));
+  background:
+    linear-gradient(180deg, rgba(11, 20, 28, 0.15) 0%, rgba(11, 20, 28, 0.75) 100%),
+    color-mix(in srgb, var(--char-bg) 65%, var(--surface));
+}
+.character-stage.character-themed .slot-panel {
+  background: color-mix(in srgb, var(--char-bg) 45%, rgba(13, 22, 30, 0.6));
+}
+.character-stage.character-themed .slot-header {
+  color: color-mix(in srgb, var(--char-accent) 70%, var(--text));
+}
+.character-stage.character-themed .slot-picture {
+  background: color-mix(in srgb, var(--char-bg) 55%, rgba(20, 34, 48, 0.85));
+}
+.character-stage.character-themed .slot-picture.filled {
+  border-color: color-mix(in srgb, var(--char-accent) 70%, var(--accent-warm));
+}
