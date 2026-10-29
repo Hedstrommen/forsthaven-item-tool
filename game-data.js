@@ -1,67 +1,69 @@
-// Character rosters grouped by game. Frosthaven characters have card art
-// in assets/characters; other games are listed by name only.
+// Character rosters grouped by game. Each character has card art in
+// assets/characters as <slug>.webp (Frosthaven/Gloomhaven/Jaws of the Lion
+// character mats from the community dataset; original emblem panels for the
+// Mercenary Pack promo characters, which have no official mat).
 const CHARACTER_GROUPS = [
   {
     game: "Frosthaven",
     characters: [
-      { name: "Banner Spear", slug: "banner-spear" },
-      { name: "Blinkblade", slug: "blinkblade" },
-      { name: "Boneshaper", slug: "boneshaper" },
-      { name: "Drifter", slug: "drifter" },
-      { name: "Geminate", slug: "geminate" },
-      { name: "Deathwalker", slug: "deathwalker" },
-      { name: "Crashing Tide", slug: "crashing-tide" },
-      { name: "Trapper", slug: "trapper" },
-      { name: "Snowdancer", slug: "snowdancer" },
-      { name: "Metal Mosaic", slug: "metal-mosaic" },
-      { name: "Pain Conduit", slug: "pain-conduit" },
-      { name: "Hive", slug: "hive" },
-      { name: "Infuser", slug: "infuser" },
-      { name: "Shattersong", slug: "shattersong" },
-      { name: "Pyroclast", slug: "pyroclast" },
-      { name: "Deepwraith", slug: "deepwraith" },
-      { name: "Frozen Fist", slug: "frozen-fist" }
+      { name: "Banner Spear", slug: "fh-banner-spear", theme: { background: "#5f543c", accent: "#f8bb2f" } },
+      { name: "Blinkblade", slug: "fh-blinkblade", theme: { background: "#2c474e", accent: "#05bae5" } },
+      { name: "Boneshaper", slug: "fh-boneshaper", theme: { background: "#2c4131", accent: "#0aaa51" } },
+      { name: "Drifter", slug: "fh-drifter", theme: { background: "#494340", accent: "#8a2827" } },
+      { name: "Geminate", slug: "fh-geminate", theme: { background: "#56393d", accent: "#d34270" } },
+      { name: "Deathwalker", slug: "fh-deathwalker", theme: { background: "#444c52", accent: "#8a272b" } },
+      { name: "Crashing Tide", slug: "fh-crashing-tide", theme: { background: "#534456", accent: "#4da0dd" } },
+      { name: "Trapper", slug: "fh-trapper", theme: { background: "#594736", accent: "#b98b4b" } },
+      { name: "Snowdancer", slug: "fh-snowdancer", theme: { background: "#465257", accent: "#62b0d8" } },
+      { name: "Metal Mosaic", slug: "fh-metal-mosaic", theme: { background: "#4d4543", accent: "#d38044" } },
+      { name: "Pain Conduit", slug: "fh-pain-conduit", theme: { background: "#373744", accent: "#304590" } },
+      { name: "Hive", slug: "fh-hive", theme: { background: "#57382a", accent: "#dfae3b" } },
+      { name: "Infuser", slug: "fh-infuser", theme: { background: "#4f584d", accent: "#63af3f" } },
+      { name: "Shattersong", slug: "fh-shattersong", theme: { background: "#413f3f", accent: "#8b2929" } },
+      { name: "Pyroclast", slug: "fh-pyroclast", theme: { background: "#583c35", accent: "#e43e1e" } },
+      { name: "Deepwraith", slug: "fh-deepwraith", theme: { background: "#503d59", accent: "#8a2928" } },
+      { name: "Frozen Fist", slug: "fh-frozen-fist", theme: { background: "#2f4855", accent: "#45b0e4" } }
     ]
   },
   {
     game: "Gloomhaven",
     characters: [
-      { name: "Brute" },
-      { name: "Tinkerer" },
-      { name: "Spellweaver" },
-      { name: "Scoundrel" },
-      { name: "Cragheart" },
-      { name: "Mindthief" },
-      { name: "Sunkeeper" },
-      { name: "Quartermaster" },
-      { name: "Summoner" },
-      { name: "Nightshroud" },
-      { name: "Plagueherald" },
-      { name: "Berserker" },
-      { name: "Soothsinger" },
-      { name: "Doomstalker" },
-      { name: "Beast Tyrant" },
-      { name: "Bladeswarm" },
-      { name: "Diviner" },
-      { name: "Drakekeeper" }
+      { name: "Brute", slug: "gh-brute", theme: { background: "#495865", accent: "#bc883f" } },
+      { name: "Tinkerer", slug: "gh-tinkerer", theme: { background: "#715e50", accent: "#b86b54" } },
+      { name: "Spellweaver", slug: "gh-spellweaver", theme: { background: "#574667", accent: "#42338d" } },
+      { name: "Scoundrel", slug: "gh-scoundrel", theme: { background: "#5b6341", accent: "#a5be4d" } },
+      { name: "Cragheart", slug: "gh-cragheart", theme: { background: "#666242", accent: "#d89d2f" } },
+      { name: "Mindthief", slug: "gh-mindthief", theme: { background: "#425160", accent: "#60abd9" } },
+      { name: "Sunkeeper", slug: "gh-sunkeeper", theme: { background: "#7a6741", accent: "#f29c2e" } },
+      { name: "Quartermaster", slug: "gh-quartermaster", theme: { background: "#7b5d41", accent: "#f29e3a" } },
+      { name: "Summoner", slug: "gh-summoner", theme: { background: "#744b61", accent: "#901f4f" } },
+      { name: "Nightshroud", slug: "gh-nightshroud", theme: { background: "#4b4b5e", accent: "#883134" } },
+      { name: "Plagueherald", slug: "gh-plagueherald", theme: { background: "#4a695e", accent: "#60a8c7" } },
+      { name: "Berserker", slug: "gh-berserker", theme: { background: "#76443d", accent: "#e76339" } },
+      { name: "Soothsinger", slug: "gh-soothsinger", theme: { background: "#815651", accent: "#ac6537" } },
+      { name: "Doomstalker", slug: "gh-doomstalker", theme: { background: "#497078", accent: "#41b3b7" } },
+      { name: "Beast Tyrant", slug: "gh-beast-tyrant", theme: { background: "#5d4940", accent: "#e37779" } },
+      { name: "Bladeswarm", slug: "gh-bladeswarm", theme: { background: "#7c5a4c", accent: "#cf905d" } },
+      { name: "Diviner", slug: "fc-diviner", theme: { background: "#505562", accent: "#8a3139" } },
+      { name: "Drakekeeper", slug: "mp-drakekeeper", theme: { background: "#1d2943", accent: "#7cbaef" } }
     ]
   },
   {
     game: "Jaws of the Lion",
     characters: [
-      { name: "Red Guard" },
-      { name: "Hatchet" },
-      { name: "Demolitionist" },
-      { name: "Voidwarden" }
+      { name: "Red Guard", slug: "jl-red-guard", theme: { background: "#805a5c", accent: "#db3c2a" } },
+      { name: "Hatchet", slug: "jl-hatchet", theme: { background: "#565a64", accent: "#eab37f" } },
+      { name: "Demolitionist", slug: "jl-demolitionist", theme: { background: "#815d53", accent: "#ec3531" } },
+      { name: "Voidwarden", slug: "jl-voidwarden", theme: { background: "#766b60", accent: "#fcc47d" } }
     ]
   },
   {
     game: "Mercenary Packs",
     characters: [
-      { name: "Hail, Irritable Enchanter" },
-      { name: "Satha, Mayor of Frosthaven" },
-      { name: "Anaphi, Fallen Lion" },
-      { name: "Cassandra, Forgotten Diviner" }
+      { name: "Hail, Irritable Enchanter", slug: "mp-hail-enchanter", theme: { background: "#3a244f", accent: "#a885cd" } },
+      { name: "Satha, Mayor of Frosthaven", slug: "mp-satha", theme: { background: "#4f371d", accent: "#f3cf7d" } },
+      { name: "Anaphi, Fallen Lion", slug: "mp-anaphi", theme: { background: "#233428", accent: "#233428" } },
+      { name: "Cassandra, Forgotten Diviner", slug: "mp-cassandra", theme: { background: "#281c34", accent: "#c58097" } }
     ]
   }
 ];

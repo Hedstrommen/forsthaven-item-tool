@@ -386,7 +386,14 @@ function attachImageFallback(image, item) {
 
 const appElement = document.getElementById("app");
 
+// Keep the page theme in sync with the active game (issue #35): the whole
+// tool shifts from Frosthaven frost blue to Gloomhaven's warm, aged tones.
+function applyGameTheme() {
+  document.body.classList.toggle("theme-gloomhaven", activeGame === "gloomhaven");
+}
+
 function render() {
+  applyGameTheme();
   renderSidebarBuilds();
   updateNavHighlight();
   if (currentPage === "browse") {
@@ -1247,10 +1254,18 @@ function renderSingleBuildPage(buildId) {
   const hasArt = character.slug !== undefined;
   const stage = document.createElement("div");
   stage.className = "character-stage" + (hasArt ? "" : " no-art");
+  // Issue #34: the character stage takes on the colours of the chosen
+  // character's own artwork - its dominant background shades the panel and
+  // its accent colour highlights the frame and headers.
+  if (character.theme !== undefined) {
+    stage.style.setProperty("--char-bg", character.theme.background);
+    stage.style.setProperty("--char-accent", character.theme.accent);
+    stage.classList.add("character-themed");
+  }
   if (hasArt) {
     stage.innerHTML =
       '<div class="artwork-frame">' +
-        '<img class="background" src="assets/characters/fh-' + character.slug + '.webp" alt="' + escapeHtml(character.name) + '" />' +
+        '<img class="background" src="assets/characters/' + character.slug + '.webp" alt="' + escapeHtml(character.name) + '" />' +
       "</div>";
   } else {
     const namePlate = document.createElement("div");
